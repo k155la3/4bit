@@ -40,7 +40,7 @@ for (var i = 0; i < model.length; ++i) {
     throw new Error('Unknown command: ' + command);
   }
 }
-var code = { nop: 0, jmp: 0xf0 };
+var code = { nop: 0, jmp: 0x30 };
 var obj = new Buffer(8192);
 for (var i = 0; i < obj.length; ++i) {
   obj[i] = 0;
