@@ -47,7 +47,7 @@ var runAlu = function (m, s, notCarryIn, a, b) {
     }
   }
 }
-for (var i = 0; i < 32; ++i) {
+for (var i = 0; i < 64; ++i) {
   var currProg = prog[pc];
   if (phase === 0) {
     fetchHigh = currProg >> 4;
@@ -72,7 +72,7 @@ for (var i = 0; i < 32; ++i) {
     '\tfetchHigh: ' + binaryWord(fetchHigh) +
     '\tfetchLow: ' + binaryWord(fetchLow) +
     '\tacumulator: ' + binaryWord(acumulator) +
-    '\tflags: ' + binaryWord(flags) +
+    '\tflags ~(00ZC): ' + binaryWord(flags) +
     '\tucode: ' + binaryByte(currUcode) +
     '\tcontrol0: ' + binaryByte(control0) +
     '\tcontrol1: ' + binaryByte(control1));
