@@ -2,8 +2,8 @@ x:	nop
 	ldi a
 	jmp y
 z:	nop
-	ldi b
-	jmp x
+	cmpi 6
+	jz x
 y:	nop
-	ldi c
-	jmp z
+	addi c
+	jc z

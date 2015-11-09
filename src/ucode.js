@@ -2,76 +2,27 @@ var fs = require('fs');
 var ucode0 = new Buffer(2048);
 var ucode1 = new Buffer(2048);
 
+var ucode = [
+  { or: 0x7ff, and: 0x781, u0: 0xff, u1: 0xff }, // PHASE0
+  { or: 0x7fe, and: 0x79e, u0: 0xfe, u1: 0xff }, // NOP
+  { or: 0x7fc, and: 0x7bc, u0: 0xfc, u1: 0xff }, // JC
+  { or: 0x7dc, and: 0x79c, u0: 0xff, u1: 0xff }, // JC
+  { or: 0x7fa, and: 0x7da, u0: 0xfc, u1: 0xff }, // JZ
+  { or: 0x7ba, and: 0x79a, u0: 0xff, u1: 0xff }, // JZ
+  { or: 0x7f8, and: 0x798, u0: 0xfc, u1: 0xff }, // JMP
+  { or: 0x7f6, and: 0x796, u0: 0xae, u1: 0xf8 }, // LDI
+  { or: 0x7f4, and: 0x794, u0: 0x96, u1: 0xf8 }, // ADDI
+  { or: 0x7f2, and: 0x792, u0: 0x62, u1: 0xfa }, // CMPI
+  { or: 0x7f0, and: 0x790, u0: 0x1e, u1: 0xf8 }, // NORI
+];
+
 for (var i = 0; i < ucode0.length; ++i) {
-  if (((i | 0x7ff) === 0x7ff) &&
-      ((i & 0x781) === 0x0)) {
-    // PHASE0
-    ucode0[i] = 0xff;
-    ucode1[i] = 0xff;
-  }
-  else if (((i | 0x7fe) === 0x7ff) &&
-           ((i & 0x79e) === 0x0)) {
-    // NOP
-    ucode0[i] = 0xfe;
-    ucode1[i] = 0xff;
-  }
-  else if (((i | 0x7fc) === 0x7ff) &&
-           ((i & 0x7bc) === 0x0)) {
-    // JC
-    ucode0[i] = 0xfc;
-    ucode1[i] = 0xff;
-  }
-  else if (((i | 0x7dc) === 0x7ff) &&
-           ((i & 0x79c) === 0x0)) {
-    // JC
-    ucode0[i] = 0xff;
-    ucode1[i] = 0xff;
-  }
-  else if (((i | 0x7fa) === 0x7ff) &&
-           ((i & 0x7da) === 0x0)) {
-    // JZ
-    ucode0[i] = 0xfc;
-    ucode1[i] = 0xff;
-  }
-  else if (((i | 0x7ba) === 0x7ff) &&
-           ((i & 0x79a) === 0x0)) {
-    // JZ
-    ucode0[i] = 0xff;
-    ucode1[i] = 0xff;
-  }
-  else if (((i | 0x7f8) === 0x7ff) &&
-           ((i & 0x798) === 0x0)) {
-    // JMP
-    ucode0[i] = 0xfc;
-    ucode1[i] = 0xff;
-  }
-  else if (((i | 0x7f6) === 0x7ff) &&
-           ((i & 0x796) === 0x0)) {
-    // LDI
-    ucode0[i] = 0xae;
-    ucode1[i] = 0xf8;
-  }
-  else if (((i | 0x7f4) === 0x7ff) &&
-           ((i & 0x794) === 0x0)) {
-    // ADDI
-    ucode0[i] = 0x96;
-    ucode1[i] = 0xf8;
-  }
-  else if (((i | 0x7f2) === 0x7ff) &&
-           ((i & 0x792) === 0x0)) {
-    // CMPI
-    ucode0[i] = 0x62;
-    ucode1[i] = 0xfa;
-  }
-  else if (((i | 0x7f0) === 0x7ff) &&
-           ((i & 0x790) === 0x0)) {
-    // NORI
-    ucode0[i] = 0x1e;
-    ucode1[i] = 0xf8;
-  }
-  else {
-    ucode0[i] = 0xfe;
-    ucode1[i] = 0xff;
+  for (var y = 0; y < ucode.length; ++y) {
+    if (((i | ucode[y].or) === 0x7ff) &&
+        ((i & ucode[y].and) === 0x0)) {
+      ucode0[i] = ucode[y].u0;
+      ucode1[i] = ucode[y].u1;
+    }
   }
 }
 
