@@ -1,7 +1,8 @@
 var fs = require('fs');
 var module = process.argv[2];
 if (!module) {
-  throw new Error('Use: asm <module>');
+  console.error('Use: asm <module>');
+  process.exit(1);
 }
 var asm = fs.readFileSync(module + '.asm', 'utf8');
 var lines = asm.split('\n');
@@ -19,7 +20,7 @@ for (var i = 0; i < lines.length; ++i) {
   var params = tokens.slice(y + 1);
   model.push({command: command, params: params, label: label});
 }
-var set = { nop: 'nop', jmp: 'jmp' };
+var set = { nop: 'nop', jmp: 'jmp', ldi: 'ldi' };
 var addr = 0;
 var labelAddrs = {};
 for (var i = 0; i < model.length; ++i) {
@@ -36,11 +37,16 @@ for (var i = 0; i < model.length; ++i) {
     model[i].addr = addr;
     addr += 2;
   }
+  else if (command === set.ldi) {
+    model[i].addr = addr;
+    addr += 1;
+  }
   else {
-    throw new Error('Unknown command: ' + command);
+    console.error('Unknown command: ' + command);
+    process.exit(1);
   }
 }
-var code = { nop: 0, jmp: 0x30 };
+var code = { nop: 0, jmp: 0x30, ldi: 0x40 };
 var obj = new Buffer(8192);
 for (var i = 0; i < obj.length; ++i) {
   obj[i] = 0;
@@ -58,9 +64,15 @@ for (var i = 0; i < model.length; ++i) {
     var label = model[i].params[0];
     var labelAddr = labelAddrs[label];
     if (labelAddr === undefined) {
-      throw new Error('Unknown label: ' + label);
+      console.error('Unknown label: ' + label);
+      process.exit(1);
     }
     obj.writeWithAddr(code.jmp, labelAddr, model[i].addr);
+  }
+  else if (command === set.ldi) {
+    var literalHex = model[i].params[0];
+    var literal = parseInt(literalHex, 16) & 0xf;
+    obj.writeWithAddr(code.ldi | literal, labelAddr, model[i].addr);
   }
 }
 fs.writeFileSync(module + '.obj', obj);
