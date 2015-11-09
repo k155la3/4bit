@@ -22,7 +22,7 @@ var binaryWord = function (x) {
 }
 var runAlu = function (m, s, notCarryIn, a, b) {
   var f = function (x) {
-    return {f: x (& 0xf), notCarryOut: (x >> 4) ? 0 : 1};
+    return {f: (x & 0xf), notCarryOut: (x >> 4) ? 0 : 1};
   };
   if (m) {
     switch (s) {
@@ -32,7 +32,7 @@ var runAlu = function (m, s, notCarryIn, a, b) {
         return f(b);
       default:
         return null;
-    } 
+    }
   }
   else {
     switch (s) {
@@ -44,10 +44,10 @@ var runAlu = function (m, s, notCarryIn, a, b) {
         return f((a + b) + (notCarryIn ? 0 : 1));
       default:
         return null;
-    } 
+    }
   }
 }
-while (true) {
+for (var i = 0; i < 32; ++i) {
   var currProg = prog[pc];
   if (phase === 0) {
     fetchHigh = currProg >> 4;
@@ -79,7 +79,7 @@ while (true) {
 
   var aluA = acumulator;
   var aluB = notOeOperand ? 0 : fetchLow;
-  var aluR = runAlu(aluM, aluS, notCarryIn, aluA, aluB); 
+  var aluR = runAlu(aluM, aluS, notCarryIn, aluA, aluB);
   if (incPc) {
     pc++;
   }
@@ -95,13 +95,13 @@ while (true) {
     }
     else {
       flags &= (~0x1);
-    } 
+    }
     if (aluR.f === 0) {
       flags &= (~0x2);
     }
     else {
       flags |= 0x2;
-    } 
+    }
   }
   phase = 1 - phase;
 }

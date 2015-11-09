@@ -1,10 +1,9 @@
 x:	nop
-	nop
+	ldi a
 	jmp y
 z:	nop
-	nop
+	ldi b
 	jmp x
 y:	nop
-	nop
+	ldi c
 	jmp z
-
