@@ -1,4 +1,4 @@
-update=Tue 03 Nov 2015 03:29:54 PM PST
+update=Thu 12 Nov 2015 06:43:31 PM PST
 version=1
 last_client=eeschema
 [cvpcb]
@@ -47,10 +47,10 @@ LibName16=valves
 version=1
 [eeschema]
 version=1
-LibDir=
+LibDir=../../Downloads/Nibbler Files/Eagle Circuit Schematics
 NetFmtName=PcbnewAdvanced
-RptD_X=0
-RptD_Y=100
+RptD_X=-100
+RptD_Y=0
 RptLab=1
 LabSize=60
 [eeschema/libraries]
@@ -84,3 +84,4 @@ LibName27=opto
 LibName28=atmel
 LibName29=contrib
 LibName30=valves
+LibName31=big-mess-o-wires
