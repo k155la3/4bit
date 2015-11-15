@@ -55,19 +55,16 @@ obj.writeWithAddress = function (code, paramAddr, addr) {
 obj.writeWithImmediate = function (code, immediate, addr) {
   this.writeUInt8(code | (immediate & 0xf), addr);
 }
+/*var label = model[i].params[0];
+var labelAddr = labelAddrs[label];
+if (labelAddr === undefined) {
+  console.error('Unknown label: ' + label);
+  process.exit(1);
+}*/
 for (var i = 0; i < model.length; ++i) {
   var command = model[i].command;
   if (noparamCommands[command]) {
     obj.writeUInt8(code[command], model[i].addr);
-  }
-  else if (addressCommands[command]) {
-    var label = model[i].params[0];
-    var labelAddr = labelAddrs[label];
-    if (labelAddr === undefined) {
-      console.error('Unknown label: ' + label);
-      process.exit(1);
-    }
-    obj.writeWithAddress(code[command], labelAddr, model[i].addr);
   }
   else if (immediateCommands[command]) {
     var immediateHex = model[i].params[0];
