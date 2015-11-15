@@ -20,9 +20,8 @@ for (var i = 0; i < lines.length; ++i) {
   var params = tokens.slice(y + 1);
   model.push({command: command, params: params, label: label});
 }
-var noparamCommands = { 'nop': true };
-var addressCommands = { 'jc': true, 'jz': true, 'jmp': true };
-var immediateCommands = { 'ldi': true, 'addi': true, 'cmpi': true, 'nori': true };
+var noparamCommands = { 'nop': true, 'jmp': true, 'jc': true, 'jz': true  };
+var immediateCommands = { 'ldi': true, 'addi': true, 'cmpi': true, 'nori': true, 'subi': true };
 var addr = 0;
 var labelAddrs = {};
 for (var i = 0; i < model.length; ++i) {
@@ -35,10 +34,6 @@ for (var i = 0; i < model.length; ++i) {
     model[i].addr = addr;
     addr += 1;
   }
-  else if (addressCommands[command]) {
-    model[i].addr = addr;
-    addr += 2;
-  }
   else if (immediateCommands[command]) {
     model[i].addr = addr;
     addr += 1;
@@ -48,7 +43,7 @@ for (var i = 0; i < model.length; ++i) {
     process.exit(1);
   }
 }
-var code = { 'nop': 0, 'jc': 0x10, 'jz': 0x20, 'jmp': 0x30, 'ldi': 0x40, 'addi': 0x50, 'cmpi': 0x60, 'nori': 0x70 };
+var code = { 'nop': 0, 'jc': 0x09, 'jz': 0x0a, 'jmp': 0x0b, 'ldi': 0x10, 'addi': 0x20, 'cmpi': 0x30, 'nori': 0x40, 'nori': 0x50 };
 var obj = new Buffer(8192);
 for (var i = 0; i < obj.length; ++i) {
   obj[i] = 0;

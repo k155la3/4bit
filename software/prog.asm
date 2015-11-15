@@ -1,9 +1,9 @@
 x:	nop
-	ldi a
-	jmp y
-z:	nop
-	cmpi 6
-	jz x
-y:	nop
-	addi c
-	jc z
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	jmp
