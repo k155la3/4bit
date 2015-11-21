@@ -1,31 +1,33 @@
+var _ = require('lodash');
 var fs = require('fs');
-var ucode0 = new Buffer(2048);
-var ucode1 = new Buffer(2048);
-
-var ucode = [
-  { or: 0x7ff, and: 0x0ff, u0: 0xff, u1: 0xff }, // NOP
-  { or: 0x7f6, and: 0x1f6, u0: 0xfc, u1: 0xff }, // JC
-  { or: 0x6f6, and: 0x0f6, u0: 0xff, u1: 0xff }, // JC
-  { or: 0x7f5, and: 0x2f5, u0: 0xfc, u1: 0xff }, // JZ
-  { or: 0x5f5, and: 0x0f5, u0: 0xff, u1: 0xff }, // JZ
-  { or: 0x7f4, and: 0x0f4, u0: 0xfc, u1: 0xff }, // JMP
-  { or: 0x7f0, and: 0x0f0, u0: 0xfe, u1: 0xff }, // HLT
-  { or: 0x7ef, and: 0x0e0, u0: 0xaf, u1: 0xf8 }, // LDI
-  { or: 0x7df, and: 0x0d0, u0: 0x97, u1: 0xf8 }, // ADDI
-  { or: 0x7cf, and: 0x0c0, u0: 0x63, u1: 0xfa }, // CMPI
-  { or: 0x7bf, and: 0x0b0, u0: 0x1f, u1: 0xf8 }, // NORI
-  { or: 0x7af, and: 0x0a0, u0: 0x63, u1: 0xf8 }, // SUBI
-];
-
-for (var i = 0; i < ucode0.length; ++i) {
-  for (var y = 0; y < ucode.length; ++y) {
-    if (((i | ucode[y].or) === 0x7ff) &&
-        ((i & ucode[y].and) === 0x0)) {
-      ucode0[i] = ucode[y].u0;
-      ucode1[i] = ucode[y].u1;
+var csv = require('csv');
+var parser = csv.parse({delimiter: '\t'}, function(err, data){
+  var ucode0 = new Buffer(2048);
+  var ucode1 = new Buffer(2048);
+  var ucode2 = new Buffer(2048);
+  var mask = mask = _.map(data, function (row) { return { or: row[0], and: row[1], ucode0: row[2], ucode1: row[3], ucode2: row[4] }; });
+  for (var i = 0; i < ucode0.length; ++i) {
+    var k = 0;
+    for (var l = 0; l < mask.length; ++l) {
+      if (((i | mask[l].or) === 0x7ff) &&
+          ((i & mask[l].and) === 0x0)) {
+        ucode0[i] = mask[l].ucode0;
+        ucode1[i] = mask[l].ucode1;
+        ucode2[i] = mask[l].ucode2;
+        k++;
+      }
+    }
+    if (k == 0) {
+      console.error('No mask at 0x' + i.toString(16));
+      process.exit(1);
+    }
+    if (k > 1) {
+      console.error('Extra mask(s) at 0x' + i.toString(16));
+      process.exit(1);
     }
   }
-}
-
-fs.writeFileSync('ucode0.bin', ucode0);
-fs.writeFileSync('ucode1.bin', ucode1);
+  fs.writeFileSync('ucode0.bin', ucode0);
+  fs.writeFileSync('ucode1.bin', ucode1);
+  fs.writeFileSync('ucode2.bin', ucode2);
+});
+fs.createReadStream('ucode.tsv').pipe(parser);
