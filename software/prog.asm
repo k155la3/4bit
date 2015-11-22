@@ -1,6 +1,7 @@
 names
         l=0x010
         m=0x100
+        x*4
 end
 
 prog

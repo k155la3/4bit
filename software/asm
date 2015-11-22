@@ -5,52 +5,12 @@ process.stdin.resume();
 process.stdin.on('data', function (buf) { asm += buf.toString('utf8'); });
 process.stdin.on('end', function () {
   var lines = asm.split(/\n|;/);
+
+  // Pass 1 -- parse names and prog, check mnemonics and arguments
   var names = {};
   var prog = [];
   var inProg = false;
   var inNames = false;
-  for (var i = 0; i < lines.length; ++i) {
-    var tokens = lines[i].split(/\t| /).filter(function (t) { return t.length; });
-    if (!tokens.length) continue;
-    if (tokens[0] === 'end' && (inProg || inNames)) {
-      inProg = false;
-      inNames = false;
-    }
-    else if (inNames) {
-      var parts = tokens[0].split('=0x')
-      if (parts.length === 2) {
-        names[parts[0]] = { val: parseInt(parts[1], 16), size: parts[1].length };
-      }
-      else {
-        parts = tokens[0].split('*')
-        if (parts.length === 2) {
-          var size;
-          if ((size = parseInt(parts[1])) === NaN) {
-            console.error(i + ': bad size "' + parts[1] + '"');
-            process.exit(1);
-          }
-          names[parts[0]] = { val: 0, size: size, alloc: true };
-        }
-      }
-    }
-    else if (inProg) {
-      var label = null;
-      var y = 0;
-      if (tokens[y].length > 1 && tokens[y][tokens[y].length - 1] === ':') {
-        label = tokens[y].substr(0, tokens[y].length - 1);
-        y += 1;
-      }
-      var mnem = tokens[y];
-      var arg = tokens[y + 1];
-      prog.push({mnem: mnem, arg: arg, label: label, line: i + 1});
-    }
-    else if (tokens[0] === 'names') {
-      inNames = true;
-    }
-    else if (tokens[0] === 'prog') {
-      inProg = true;
-    }
-  }
   var mnemCodes = {
     'nop': 0,
     'bc_b': 0x09,
@@ -68,44 +28,69 @@ process.stdin.on('end', function () {
   var hasArgs = function (code) {
     return ((code | 0x0f) !== 0x0f && (code & 0xf0) !== 0xf0);
   };
-  var addr = 0;
-  var argVal = function (p, expSize) {
-    var name;
-    if (name = names[p.arg]) {
-      if (name.size != expSize) {
-        console.error(p.line + ': bad size "' + p.arg + '"');
-        process.exit(1);
-      }
-      return name.val;
+  for (var i = 0; i < lines.length; ++i) {
+    var lnum = i + 1;
+    var tokens = lines[i].split(/\t| /).filter(function (t) { return t.length; });
+    if (!tokens.length) continue;
+    if (tokens[0] === 'end' && (inProg || inNames)) {
+      inProg = false;
+      inNames = false;
     }
-    else {
-      var parts = p.arg.split('/')
-      if (parts.length === 2 && (name = names[parts[0]])) {
-        if (1 != expSize) {
-          console.error(p.line + ': bad size "' + p.arg + '"');
-          process.exit(1);
-        }
-        var slice = parseInt(parts[1]);
-        if (slice < 0 || slice >= name.size) {
-          console.error(p.line + ': bad slice "' + p.arg + '"');
-          process.exit(1);
-        }
-        return (name.val >> (slice * 4)) & 0xf;
-      }
-      else if (p.arg.startsWith('0x')) {
-        var hexVal = p.arg.substr(2);
-        if (hexVal.length != expSize) {
-          console.error(p.line + ': bad size "' + p.arg + '"');
-          process.exit(1);
-        }
-        return parseInt(hexVal, 16);
+    else if (inNames) {
+      var parts = tokens[0].split('=0x')
+      if (parts.length === 2) {
+        names[parts[0]] = { val: parseInt(parts[1], 16), size: parts[1].length };
       }
       else {
-        console.error(p.line + ': undefined name "' + p.arg + '"');
-        process.exit(1);
+        parts = tokens[0].split('*')
+        if (parts.length === 2) {
+          var size;
+          if (isNaN(size = parseInt(parts[1]))) {
+            console.error(lnum + ': unexpected name size "' + parts[1] + '"');
+            process.exit(1);
+          }
+          names[parts[0]] = { val: 0, size: size, alloc: true };
+        }
       }
     }
-  };
+    else if (inProg) {
+      var label = null;
+      var y = 0;
+      if (tokens[y].length > 1 && tokens[y][tokens[y].length - 1] === ':') {
+        label = tokens[y].substr(0, tokens[y].length - 1);
+        y += 1;
+      }
+      var mnem = tokens[y];
+      var arg = tokens[y + 1];
+      var code;
+      if ((code = mnemCodes[mnem]) !== undefined) {
+        if (hasArgs(code)) {
+          if (arg === undefined) {
+            console.error(lnum + ': argument expected for: ' + mnem);
+            process.exit(1);
+          }
+        }
+        else if (arg !== undefined) {
+          console.error(lnum + ': argument not expected for: ' + mnem);
+          process.exit(1);
+        }
+      }
+      else {
+        console.error(lnum + ': unknown mnemonics: ' + mnem);
+        process.exit(1);
+      }
+      prog.push({code: code, arg: arg, label: label, lnum: lnum});
+    }
+    else if (tokens[0] === 'names') {
+      inNames = true;
+    }
+    else if (tokens[0] === 'prog') {
+      inProg = true;
+    }
+  }
+
+  // Pass 2 -- scan labels, assign addresses
+  var addr = 0;
   for (var i = 0; i < prog.length; ++i) {
     var p = prog[i];
     var label = p.label;
@@ -113,11 +98,11 @@ process.stdin.on('end', function () {
       var name;
       if (name = names[label]) {
         if (name.label) {
-          console.error(p.line + ': double label "' + label + '"');
+          console.error(p.lnum + ': label used more than once "' + label + '"');
           process.exit(1);
         }
         if (name.alloc) {
-          console.error(p.line + ': RAM allocation used for label "' + label + '"');
+          console.error(p.lnum + ': allocation used for label "' + label + '"');
           process.exit(1);
         }
         addr = name.val;
@@ -129,24 +114,46 @@ process.stdin.on('end', function () {
     }
     p.addr = addr;
     addr += 1;
-    var code;
-    if ((code = mnemCodes[p.mnem]) !== undefined) {
-      if (hasArgs(code)) {
-        if (p.arg === undefined) {
-          console.error(p.line + ': argument expected');
+  }
+
+  // Pass 3 -- object generation
+  var argVal = function (p, expSize) {
+    var name;
+    if (name = names[p.arg]) {
+      if (name.size != expSize) {
+        console.error(p.lnum + ': argument size does not match "' + p.arg + '"');
+        process.exit(1);
+      }
+      return name.val;
+    }
+    else {
+      var parts = p.arg.split('/')
+      if (parts.length === 2 && (name = names[parts[0]])) {
+        if (1 != expSize) {
+          console.error(p.lnum + ': argument size does not match "' + p.arg + '"');
           process.exit(1);
         }
+        var slice = parseInt(parts[1]);
+        if (slice < 0 || slice >= name.size) {
+          console.error(p.lnum + ': argument slice does not match its size "' + p.arg + '"');
+          process.exit(1);
+        }
+        return (name.val >> (slice * 4)) & 0xf;
       }
-      else if (p.arg !== undefined) {
-        console.error(p.line + ': argument not expected');
+      else if (p.arg.startsWith('0x')) {
+        var hexVal = p.arg.substr(2);
+        if (hexVal.length != expSize) {
+          console.error(p.lnum + ': argument size does not match "' + p.arg + '"');
+          process.exit(1);
+        }
+        return parseInt(hexVal, 16);
+      }
+      else {
+        console.error(p.lnum + ': undefined name "' + p.arg + '"');
         process.exit(1);
       }
     }
-    else {
-      console.error(p.line + ': unknown mnem: ' + p.mnem);
-      process.exit(1);
-    }
-  }
+  };
   var obj = new Buffer(8192);
   obj.fill(0);
   for (var i = 0; i < obj.length; ++i) {
@@ -157,12 +164,11 @@ process.stdin.on('end', function () {
   };
   for (var i = 0; i < prog.length; ++i) {
     var p = prog[i];
-    var code = mnemCodes[p.mnem];
-    if (hasArgs(code)) {
-      obj.writeWithArg(code, argVal(p, 1), p.addr);
+    if (hasArgs(p.code)) {
+      obj.writeWithArg(p.code, argVal(p, 1), p.addr);
     }
     else {
-      obj.writeUInt8(code, p.addr);
+      obj.writeUInt8(p.code, p.addr);
     }
   }
   process.stdout.write(obj);
