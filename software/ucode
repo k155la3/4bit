@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var _ = require('lodash');
 var fs = require('fs');
 var csv = require('csv');
@@ -5,7 +7,7 @@ var parser = csv.parse({delimiter: '\t'}, function(err, data){
   var ucode0 = new Buffer(2048);
   var ucode1 = new Buffer(2048);
   var ucode2 = new Buffer(2048);
-  var mask = mask = _.map(data, function (row) { return { or: row[0], and: row[1], ucode0: row[2], ucode1: row[3], ucode2: row[4] }; });
+  var mask = mask = _.map(data, function (row) { return { or: row[0], and: row[1], ucode2: row[2], ucode1: row[3], ucode0: row[4] }; });
   for (var i = 0; i < ucode0.length; ++i) {
     var k = 0;
     for (var l = 0; l < mask.length; ++l) {

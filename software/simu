@@ -1,0 +1,241 @@
+#!/usr/bin/env node
+
+var csv = require('csv');
+var fs = require('fs');
+var pc = 0;
+var a = 0;
+var flags = 0;
+var b0 = 0;
+var b1 = 0;
+var b2 = 0;
+var c0 = 0;
+var c1 = 0;
+var c2 = 0;
+var inPort = 0;
+var outPorts = {};
+var ucode0 = fs.readFileSync('ucode0.bin');
+var ucode1 = fs.readFileSync('ucode1.bin');
+var ucode2 = fs.readFileSync('ucode2.bin');
+var binaryByte = function (x) {
+  return '0b' + ('00000000' + (x).toString(2)).substr(-8);
+}
+var binaryWord = function (x) {
+  return '0b' + ('0000' + (x).toString(2)).substr(-4);
+}
+var columns = {
+  pc: 'PC',
+  prog: 'PROG',
+  a: 'A',
+  flags: '~(00ZC)',
+  control0: 'CONTROL0',
+  control1: 'CONTROL1',
+  control2: 'CONTROL2'
+};
+var prog = new Buffer(0);
+process.stdin.resume();
+process.stdin.on('data', function (buf) { prog = Buffer.concat([buf, prog]); });
+process.stdin.on('end', function () {
+  var stringifier = csv.stringify({ header: true, columns: columns });
+  stringifier.pipe(process.stdout);
+  var runAlu = function (m, s, notCRIN, a, b) {
+    var arg = function (x) {
+      if (x === null) {
+        console.error('ALU argument inactive');
+        stringifier.end();
+        process.exit(1);
+      }
+      return x;
+    }
+    var f = function (x) {
+      return {f: (x & 0xf), notCROUT: (x >> 4) ? 0 : 1};
+    };
+    if (m) {
+      switch (s) {
+        case 0x1:
+          return f((~arg(a)) | (~arg(b)));
+        case 0xa:
+          return f(arg(b));
+        default:
+          return null;
+      }
+    }
+    else {
+      switch (s) {
+        case 0x0:
+          return f(arg(a) + (notCRIN ? 0 : 1));
+        case 0x6:
+          return f((arg(a) - arg(b) - 1) + (notCRIN ? 0 : 1));
+        case 0x9:
+          return f((arg(a) + arg(b)) + (notCRIN ? 0 : 1));
+        default:
+          return null;
+      }
+    }
+  }
+  for (var i = 0; i < 64; ++i) {
+    var currProg = prog[pc];
+    var currOperand = currProg & 0xf;
+    var currUcode = currProg | (flags << 8);
+
+    var control0 = ucode0[currUcode];
+    var control1 = ucode1[currUcode];
+    var control2 = ucode2[currUcode];
+
+    var INCPC = (control0 & 0x1);
+    var notLDPC = (control0 & 0x2);
+    var notCRIN = (control0 & 0x4);
+    var ALUM = (control0 & 0x8);
+    var ALUS = (control0 >> 4);
+
+    var notOEOP = (control1 & 0x1);
+    var notLDACU = (control1 & 0x2);
+    var notLDFL = (control1 & 0x4);
+    var notOEALU = (control1 & 0x8);
+    var notOEIN = (control1 & 0x10);
+    var notLDOUT = (control1 & 0x20);
+    var notCSRAM = (control1 & 0x40);
+    var notWERAM = (control1 & 0x80);
+
+    var notLDB0 = (control2 & 0x1);
+    var notLDB1 = (control2 & 0x2);
+    var notLDB2 = (control2 & 0x4);
+    var notLDC0 = (control2 & 0x8);
+    var notLDC1 = (control2 & 0x10);
+    var notLDC2 = (control2 & 0x20);
+    var notOEB = (control2 & 0x40);
+    var notOEC = (control2 & 0x80);
+
+    stringifier.write({
+      pc: '0x' + pc.toString(16),
+      prog: binaryByte(currProg),
+      a: binaryWord(a),
+      flags: binaryWord(flags),
+      control0: binaryByte(control0),
+      control1: binaryByte(control1),
+      control2: binaryByte(control2)
+    });
+
+    var data = null;
+    var dataActive = 0;
+    var address = null;
+    var addressActive = 0;
+
+    // handle address outputs
+    if (!notOEB) {
+      address = b0 || (b1 << 4) || (b2 << 8);
+      addressActive++;
+    }
+    if (!notOEC) {
+      address = c0 || (c1 << 4) || (c2 << 8);
+      addressActive++;
+    }
+
+    if (addressActive > 1) {
+      console.error('Address conflict');
+      stringifier.end();
+      process.exit(1);
+    }
+
+    // handle address inputs
+    if (!notLDPC || !notCSRAM) {
+      if (addressActive == 0) {
+        console.error('Address inactive');
+        stringifier.end();
+        process.exit(1);
+      }
+      if (!notLDPC) {
+        pc = address;
+      }
+      if (!notCSRAM) {
+        data = mem[address];
+        dataActive++;
+      }
+    }
+
+    // handle data outputs
+    if (!notOEOP) {
+      data = currOperand;
+      dataActive++;
+    }
+    if (!notOEIN) {
+      data = inPort;
+      dataActive++;
+    }
+    var ALUR = runAlu(
+      ALUM,
+      ALUS,
+      notCRIN,
+      a,
+      data // INPUT! -- here is the issue with nibbler
+    );
+    if (!notLDACU || !notOEALU) {
+      if (ALUR === null) {
+        console.error('Unsupported ALU operation');
+        stringifier.end();
+        process.exit(1);
+      }
+      if (!notLDACU) {
+        a = ALUR.f;
+      }
+      if (!notOEALU) {
+        data = ALUR.f;
+        dataActive++;
+      }
+    }
+
+    if (dataActive > 1) {
+      console.error('Data conflict');
+      stringifier.end();
+      process.exit(1);
+    }
+
+    // handle data inputs
+    if (!notLDB0 || !notLDB1 || !notLDB2 || !notLDC0 || !notLDC1 || !notLDC2 || !notLDFL || !notLDOUT) {
+      if (dataActive == 0) {
+        console.error('Data inactive');
+        stringifier.end();
+        process.exit(1);
+      }
+      if (!notLDB0) {
+        b0 = data;
+      }
+      if (!notLDB1) {
+        b1 = data;
+      }
+      if (!notLDB2) {
+        b2 = data;
+      }
+      if (!notLDC0) {
+        c0 = data;
+      }
+      if (!notLDC1) {
+        c1 = data;
+      }
+      if (!notLDC2) {
+        c2 = data;
+      }
+      if (!notLDFL) {
+        if (ALUR.notCROUT) {
+          flags |= 0x1;
+        }
+        else {
+          flags &= (~0x1);
+        }
+        if (data === 0) {
+          flags &= (~0x2);
+        }
+        else {
+          flags |= 0x2;
+        }
+      }
+      if (!notLDOUT) {
+        outPorts[currOperand] = data;
+      }
+    }
+
+    if (INCPC) {
+      pc++;
+    }
+  }
+  stringifier.end();
+});

@@ -1,16 +1,16 @@
-ldi e
-jmp
-ldi c
-jmp
-ldi a
-jmp
-ldi 0
-jmp
-ldi 6
-jmp
-ldi 2
-jmp
-ldi 8
-jmp
-ldi 4
-jmp
+ld_b0 e
+bu_b
+ld_b0 c
+bu_b
+ld_b0 a
+bu_b
+ld_b0 0
+bu_b
+ld_b0 6
+bu_b
+ld_b0 2
+bu_b
+ld_b0 8
+bu_b
+ld_b0 4
+bu_b
