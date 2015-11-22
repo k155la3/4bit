@@ -35,6 +35,10 @@ var prog = new Buffer(0);
 process.stdin.resume();
 process.stdin.on('data', function (buf) { prog = Buffer.concat([buf, prog]); });
 process.stdin.on('end', function () {
+  if (!prog.length) {
+    console.error('Empty object');
+    process.exit(1);
+  }
   var stringifier = csv.stringify({ header: true, columns: columns });
   stringifier.pipe(process.stdout);
   var runAlu = function (m, s, notCRIN, a, b) {

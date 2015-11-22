@@ -4,56 +4,149 @@ var asm = '';
 process.stdin.resume();
 process.stdin.on('data', function (buf) { asm += buf.toString('utf8'); });
 process.stdin.on('end', function () {
-  var lines = asm.split('\n');
-  var main = [];
+  var lines = asm.split(/\n|;/);
+  var names = {};
+  var prog = [];
+  var inProg = false;
+  var inNames = false;
   for (var i = 0; i < lines.length; ++i) {
     var tokens = lines[i].split(/\t| /).filter(function (t) { return t.length; });
     if (!tokens.length) continue;
-    var label = null;
-    var y = 0;
-    if (tokens[y].length > 1 && tokens[y][tokens[y].length - 1] === ':') {
-      label = tokens[y].substr(0, tokens[y].length - 1);
-      y += 1;
+    if (tokens[0] === 'end' && (inProg || inNames)) {
+      inProg = false;
+      inNames = false;
     }
-    var mnem = tokens[y];
-    var params = tokens.slice(y + 1);
-    main.push({mnem: mnem, params: params, label: label});
+    else if (inNames) {
+      var parts = tokens[0].split('=0x')
+      if (parts.length === 2) {
+        names[parts[0]] = { val: parseInt(parts[1], 16), size: parts[1].length };
+      }
+      else {
+        parts = tokens[0].split('*')
+        if (parts.length === 2) {
+          var size;
+          if ((size = parseInt(parts[1])) === NaN) {
+            console.error(i + ': bad size "' + parts[1] + '"');
+            process.exit(1);
+          }
+          names[parts[0]] = { val: 0, size: size, alloc: true };
+        }
+      }
+    }
+    else if (inProg) {
+      var label = null;
+      var y = 0;
+      if (tokens[y].length > 1 && tokens[y][tokens[y].length - 1] === ':') {
+        label = tokens[y].substr(0, tokens[y].length - 1);
+        y += 1;
+      }
+      var mnem = tokens[y];
+      var arg = tokens[y + 1];
+      prog.push({mnem: mnem, arg: arg, label: label, line: i + 1});
+    }
+    else if (tokens[0] === 'names') {
+      inNames = true;
+    }
+    else if (tokens[0] === 'prog') {
+      inProg = true;
+    }
   }
-  var noargMnems = { 'nop': true, 'bu_b': true, 'bc_b': true, 'bz_b': true  };
-  var argMnems = { 'ld_b0': true, 'ldi': true, 'addi': true, 'cmpi': true, 'nori': true, 'subi': true };
-  var addr = 0;
-  var labelAddrs = {};
-  for (var i = 0; i < main.length; ++i) {
-    var label = main[i].label;
-    if (label) {
-      labelAddrs[label] = addr;
-    }
-    var mnem = main[i].mnem;
-    if (noargMnems[mnem]) {
-      main[i].addr = addr;
-      addr += 1;
-    }
-    else if (argMnems[mnem]) {
-      main[i].addr = addr;
-      addr += 1;
-    }
-    else {
-      console.error('Unknown mnem: ' + mnem);
-      process.exit(1);
-    }
-  }
-  var code = {
+  var mnemCodes = {
     'nop': 0,
     'bc_b': 0x09,
     'bz_b': 0x0a,
     'bu_b': 0x0b,
-    'ldi': 0x10,
-    'addi': 0x20,
-    'cmpi': 0x30,
-    'nori': 0x40,
-    'nori': 0x50,
+    'ld_a': 0x10,
+    'add': 0x20,
+    'cmp': 0x30,
+    'nor': 0x40,
+    'out_a': 0x50,
     'ld_b0': 0x70,
+    'ld_b1': 0x80,
+    'ld_b2': 0x90,
   };
+  var hasArgs = function (code) {
+    return ((code | 0x0f) !== 0x0f && (code & 0xf0) !== 0xf0);
+  };
+  var addr = 0;
+  var argVal = function (p, expSize) {
+    var name;
+    if (name = names[p.arg]) {
+      if (name.size != expSize) {
+        console.error(p.line + ': bad size "' + p.arg + '"');
+        process.exit(1);
+      }
+      return name.val;
+    }
+    else {
+      var parts = p.arg.split('/')
+      if (parts.length === 2 && (name = names[parts[0]])) {
+        if (1 != expSize) {
+          console.error(p.line + ': bad size "' + p.arg + '"');
+          process.exit(1);
+        }
+        var slice = parseInt(parts[1]);
+        if (slice < 0 || slice >= name.size) {
+          console.error(p.line + ': bad slice "' + p.arg + '"');
+          process.exit(1);
+        }
+        return (name.val >> (slice * 4)) & 0xf;
+      }
+      else if (p.arg.startsWith('0x')) {
+        var hexVal = p.arg.substr(2);
+        if (hexVal.length != expSize) {
+          console.error(p.line + ': bad size "' + p.arg + '"');
+          process.exit(1);
+        }
+        return parseInt(hexVal, 16);
+      }
+      else {
+        console.error(p.line + ': undefined name "' + p.arg + '"');
+        process.exit(1);
+      }
+    }
+  };
+  for (var i = 0; i < prog.length; ++i) {
+    var p = prog[i];
+    var label = p.label;
+    if (label) {
+      var name;
+      if (name = names[label]) {
+        if (name.label) {
+          console.error(p.line + ': double label "' + label + '"');
+          process.exit(1);
+        }
+        if (name.alloc) {
+          console.error(p.line + ': RAM allocation used for label "' + label + '"');
+          process.exit(1);
+        }
+        addr = name.val;
+        name.label = true;
+      }
+      else {
+        names[label] = { val: addr, size: 3, label: true };
+      }
+    }
+    p.addr = addr;
+    addr += 1;
+    var code;
+    if ((code = mnemCodes[p.mnem]) !== undefined) {
+      if (hasArgs(code)) {
+        if (p.arg === undefined) {
+          console.error(p.line + ': argument expected');
+          process.exit(1);
+        }
+      }
+      else if (p.arg !== undefined) {
+        console.error(p.line + ': argument not expected');
+        process.exit(1);
+      }
+    }
+    else {
+      console.error(p.line + ': unknown mnem: ' + p.mnem);
+      process.exit(1);
+    }
+  }
   var obj = new Buffer(8192);
   obj.fill(0);
   for (var i = 0; i < obj.length; ++i) {
@@ -61,22 +154,15 @@ process.stdin.on('end', function () {
   }
   obj.writeWithArg = function (code, immediate, addr) {
     this.writeUInt8(code | (immediate & 0xf), addr);
-  }
-  /*var label = main[i].params[0];
-  var labelAddr = labelAddrs[label];
-  if (labelAddr === undefined) {
-    console.error('Unknown label: ' + label);
-    process.exit(1);
-  }*/
-  for (var i = 0; i < main.length; ++i) {
-    var mnem = main[i].mnem;
-    if (noargMnems[mnem]) {
-      obj.writeUInt8(code[mnem], main[i].addr);
+  };
+  for (var i = 0; i < prog.length; ++i) {
+    var p = prog[i];
+    var code = mnemCodes[p.mnem];
+    if (hasArgs(code)) {
+      obj.writeWithArg(code, argVal(p, 1), p.addr);
     }
-    else if (argMnems[mnem]) {
-      var immediateHex = main[i].params[0];
-      var immediate = parseInt(immediateHex, 16);
-      obj.writeWithArg(code[mnem], immediate, main[i].addr);
+    else {
+      obj.writeUInt8(code, p.addr);
     }
   }
   process.stdout.write(obj);
