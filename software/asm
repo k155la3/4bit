@@ -1,40 +1,94 @@
 #!/usr/bin/env node
 
+var _ = require('lodash');
+
 var asm = '';
 process.stdin.resume();
 process.stdin.on('data', function (buf) { asm += buf.toString('utf8'); });
 process.stdin.on('end', function () {
   var lines = asm.split(/\n|;/);
 
-  // Pass 1 -- parse names and prog, check mnemonics and arguments
+  // Pass 1
   var names = {};
-  var prog = [];
-  var inProg = false;
+  var macros = {};
+  var mainProg = [];
+  var inMain = false;
   var inNames = false;
-  var mnemCodes = {
+  var inMacro = false;
+  var macroProg = null;
+  var codes = {
     'nop': 0,
+    'ld_a_@b': 0x01,
+    'add_@b': 0x02,
+    'cmp_@b': 0x03,
+    'nor_@b': 0x04,
+    'ld_a_@c': 0x05,
     'bc_b': 0x09,
     'bz_b': 0x0a,
     'bu_b': 0x0b,
+    'st_a_@b': 0x0c,
+    'st_a_@c': 0x0d,
+    'hlt': 0x0f,
     'ld_a': 0x10,
     'add': 0x20,
     'cmp': 0x30,
     'nor': 0x40,
     'out_a': 0x50,
+    'in_a': 0x60,
     'ld_b0': 0x70,
     'ld_b1': 0x80,
     'ld_b2': 0x90,
+    'ld_c0': 0xb0,
+    'ld_c1': 0xc0,
+    'ld_c2': 0xd0,
+    'ld_b0_a': 0xf0,
+    'ld_b1_a': 0xf1,
+    'ld_b2_a': 0xf2,
+    'ld_c0_a': 0xf4,
+    'ld_c1_a': 0xf5,
+    'ld_c2_a': 0xf6,
+    'ld_b0_@c': 0xf8,
+    'ld_b1_@c': 0xf9,
+    'ld_b2_@c': 0xfa,
+    'ld_c0_@b': 0xfc,
+    'ld_c1_@b': 0xfd,
+    'ld_c2_@b': 0xfe,
   };
-  var hasArgs = function (code) {
-    return ((code | 0x0f) !== 0x0f && (code & 0xf0) !== 0xf0);
+  var numOfArgs = function (code) {
+    return ((code | 0x0f) !== 0x0f && (code & 0xf0) !== 0xf0) ? 1 : 0;
+  };
+  var parseArg = function (arg) {
+    var parts0 = arg.split('/')
+    if (parts0.length === 2) {
+      var name = parts0[0];
+      var slice;
+      var step;
+      var parts1 = parts0[1].split('+')
+      if (parts1.length === 2) {
+        slice = parseInt(parts1[0]);
+        step = parseInt(parts1[1]);
+      }
+      else {
+        slice = parseInt(parts0[1]);
+      }
+      return { name: name, slice: slice, step: step };
+    }
+    else if (arg.startsWith('0x')) {
+      var hexVal = arg.substr(2);
+      return { lit: parseInt(hexVal, 16), size: hexVal.length };
+    }
+    else {
+      return { name: arg };
+    }
   };
   for (var i = 0; i < lines.length; ++i) {
     var lnum = i + 1;
     var tokens = lines[i].split(/\t| /).filter(function (t) { return t.length; });
     if (!tokens.length) continue;
-    if (tokens[0] === 'end' && (inProg || inNames)) {
-      inProg = false;
+    if (tokens[0] === 'end' && (inMain || inNames || inMacro)) {
+      inMain = false;
       inNames = false;
+      inMacro = false;
     }
     else if (inNames) {
       var parts = tokens[0].split('=0x')
@@ -46,129 +100,197 @@ process.stdin.on('end', function () {
         if (parts.length === 2) {
           var size;
           if (isNaN(size = parseInt(parts[1]))) {
-            console.error(lnum + ': unexpected name size "' + parts[1] + '"');
+            console.error(lnum + ': [ERROR] unexpected name size "' + parts[1] + '"');
             process.exit(1);
           }
           names[parts[0]] = { val: 0, size: size, alloc: true };
         }
       }
     }
-    else if (inProg) {
+    else if (inMain || inMacro) {
       var label = null;
       var y = 0;
       if (tokens[y].length > 1 && tokens[y][tokens[y].length - 1] === ':') {
         label = tokens[y].substr(0, tokens[y].length - 1);
         y += 1;
       }
-      var mnem = tokens[y];
-      var arg = tokens[y + 1];
+      var name = tokens[y];
+      var args = _.map(tokens.slice(y + 1), parseArg);
       var code;
-      if ((code = mnemCodes[mnem]) !== undefined) {
-        if (hasArgs(code)) {
-          if (arg === undefined) {
-            console.error(lnum + ': argument expected for: ' + mnem);
-            process.exit(1);
-          }
-        }
-        else if (arg !== undefined) {
-          console.error(lnum + ': argument not expected for: ' + mnem);
+      var p;
+      if ((code = codes[name]) !== undefined) {
+        var expNumOfArgs = numOfArgs(code)
+        if (expNumOfArgs > args.length) {
+          console.error(lnum + ': [ERROR] less argument than expected for: ' + name);
           process.exit(1);
         }
+        else if (expNumOfArgs < args.length) {
+          console.error(lnum + ': [ERROR] more arguments than expected for: ' + name);
+          process.exit(1);
+        }
+        p = {code: code, args: args, label: label, lnum: lnum};
       }
       else {
-        console.error(lnum + ': unknown mnemonics: ' + mnem);
-        process.exit(1);
+        p = {macro: name, args: args, label: label, lnum: lnum};
       }
-      prog.push({code: code, arg: arg, label: label, lnum: lnum});
+      if (inMain) {
+        mainProg.push(p);
+      }
+      else if (inMacro) {
+        macroProg.push(p);
+      }
     }
     else if (tokens[0] === 'names') {
       inNames = true;
     }
-    else if (tokens[0] === 'prog') {
-      inProg = true;
+    else if (tokens[0] === 'main') {
+      inMain = true;
+    }
+    else if (tokens[0] === 'macro' && tokens.length > 1) {
+      inMacro = true;
+      macroProg = [];
+      macros[tokens[1]] = { prog: macroProg, aliases: tokens.slice(2) };
     }
   }
 
-  // Pass 2 -- scan labels, assign addresses
+  // Pass 2
   var addr = 0;
-  for (var i = 0; i < prog.length; ++i) {
-    var p = prog[i];
-    var label = p.label;
-    if (label) {
-      var name;
-      if (name = names[label]) {
-        if (name.label) {
-          console.error(p.lnum + ': label used more than once "' + label + '"');
-          process.exit(1);
-        }
-        if (name.alloc) {
-          console.error(p.lnum + ': allocation used for label "' + label + '"');
-          process.exit(1);
-        }
-        addr = name.val;
-        name.label = true;
+  var objProg = [];
+  var nextNamespace = 0;
+  var generate = function (prog, renaming, namespace) {
+    var renameArg = function (arg) {
+      if (arg.lit !== undefined) {
+        return arg;
       }
       else {
-        names[label] = { val: addr, size: 3, label: true };
+        var renamedArg;
+        if (renamedArg = renaming[arg.name]) {
+          if (arg.slice !== undefined) {
+            if (renamedArg.slice !== undefined) {
+              console.error(p.lnum + ': [ERROR] double sliced argument "' + renamedArg.name + '"');
+              process.exit(1);
+            }
+            var resultArg = _.cloneDeep(arg);
+            resultArg.name = renamedArg.name;
+            return resultArg;
+          }
+          else {
+            return renamedArg;
+          }
+        }
+        else {
+          var resultArg = _.cloneDeep(arg);
+          resultArg.name += namespace;
+          return resultArg;
+        }
+      }
+    };
+    for (var i = 0; i < prog.length; ++i) {
+      var p = _.cloneDeep(prog[i]);
+      p.args = _.map(p.args, renameArg)
+      var label = p.label;
+      if (label) {
+        label += namespace;
+        var name;
+        if (name = names[label]) {
+          if (name.label) {
+            console.error(p.lnum + ': [ERROR] label used more than once "' + label + '"');
+            process.exit(1);
+          }
+          if (name.alloc) {
+            console.error(p.lnum + ': [ERROR] allocation used for label "' + label + '"');
+            process.exit(1);
+          }
+          addr = name.val;
+          name.label = true;
+        }
+        else {
+          names[label] = { val: addr, size: 3, label: true };
+        }
+      }
+      if (p.code !== undefined) {
+        if (objProg[addr]) {
+          console.error(p.lnum + ': [ERROR] placement conflict');
+          process.exit(1);
+        }
+        p.addr = addr;
+        objProg[addr] = p;
+        addr += 1;
+      }
+      else {
+        var macro;
+        if ((macro = macros[p.macro]) !== undefined) {
+          if (macro.aliases.length !== p.args.length) {
+            console.error(p.lnum + ': [ERROR] invalid number of macro arguments for "' + p.macroName + '"');
+            process.exit(1);
+          }
+          var macroRenaming = {};
+          for (var k = 0; k < macro.aliases.length; ++k) {
+            var alias = macro.aliases[k];
+            var arg = p.args[k];
+            macroRenaming[alias] = arg;
+          }
+          generate(macro.prog, macroRenaming, nextNamespace.toString(16));
+          nextNamespace++;
+        }
+        else {
+          console.error(p.lnum + ': [ERROR] unknown macro "' + p.macro + '"');
+          process.exit(1);
+        }
       }
     }
-    p.addr = addr;
-    addr += 1;
   }
+  generate(mainProg, {}, '');
 
-  // Pass 3 -- object generation
-  var argVal = function (p, expSize) {
-    var name;
-    if (name = names[p.arg]) {
-      if (name.size != expSize) {
-        console.error(p.lnum + ': argument size does not match "' + p.arg + '"');
+  // Pass 3
+  var resolveArg = function (arg, expSize, lnum) {
+    if (arg.lit !== undefined) {
+      if (arg.size != expSize) {
+        console.error(lnum + ': [ERROR] literal size does not match ' + expSize);
         process.exit(1);
       }
-      return name.val;
+      return arg.lit;
     }
     else {
-      var parts = p.arg.split('/')
-      if (parts.length === 2 && (name = names[parts[0]])) {
-        if (1 != expSize) {
-          console.error(p.lnum + ': argument size does not match "' + p.arg + '"');
-          process.exit(1);
+      var name;
+      if (name = names[arg.name]) {
+        if (arg.slice !== undefined) {
+          if (arg.slice < 0 || arg.slice >= name.size) {
+            console.error(lnum + ': [ERROR] argument slice does not match its size "' + arg.name + '"');
+            process.exit(1);
+          }
+          var x = (((name.val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
+          console.error(arg.slice + ' :' + x);
+          return x;
         }
-        var slice = parseInt(parts[1]);
-        if (slice < 0 || slice >= name.size) {
-          console.error(p.lnum + ': argument slice does not match its size "' + p.arg + '"');
-          process.exit(1);
+        else {
+          if (name.size != expSize) {
+            console.error(lnum + ': [ERROR] argument size does not match "' + arg.name + '"');
+            process.exit(1);
+          }
+          return name.val;
         }
-        return (name.val >> (slice * 4)) & 0xf;
-      }
-      else if (p.arg.startsWith('0x')) {
-        var hexVal = p.arg.substr(2);
-        if (hexVal.length != expSize) {
-          console.error(p.lnum + ': argument size does not match "' + p.arg + '"');
-          process.exit(1);
-        }
-        return parseInt(hexVal, 16);
       }
       else {
-        console.error(p.lnum + ': undefined name "' + p.arg + '"');
+        console.error(lnum + ': [ERROR] undefined name "' + arg.name + '"');
         process.exit(1);
       }
     }
   };
   var obj = new Buffer(8192);
-  obj.fill(0);
-  for (var i = 0; i < obj.length; ++i) {
-    obj[i] = 0;
-  }
+  obj.fill(0xf);
   obj.writeWithArg = function (code, immediate, addr) {
     this.writeUInt8(code | (immediate & 0xf), addr);
   };
-  for (var i = 0; i < prog.length; ++i) {
-    var p = prog[i];
-    if (hasArgs(p.code)) {
-      obj.writeWithArg(p.code, argVal(p, 1), p.addr);
-    }
-    else {
-      obj.writeUInt8(p.code, p.addr);
+  for (var i = 0; i < objProg.length; ++i) {
+    var p;
+    if (p = objProg[i]) {
+      if (p.args.length === 1) {
+        obj.writeWithArg(p.code, resolveArg(p.args[0], 1, p.lnum), p.addr);
+      }
+      else {
+        obj.writeUInt8(p.code, p.addr);
+      }
     }
   }
   process.stdout.write(obj);
