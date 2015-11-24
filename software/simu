@@ -13,6 +13,7 @@ var c1 = 0;
 var c2 = 0;
 var inPort = 0;
 var outPorts = {};
+var mem = [];
 var ucode0 = fs.readFileSync('ucode0.bin');
 var ucode1 = fs.readFileSync('ucode1.bin');
 var ucode2 = fs.readFileSync('ucode2.bin');
@@ -22,9 +23,19 @@ var binaryByte = function (x) {
 var binaryWord = function (x) {
   return '0b' + ('0000' + (x).toString(2)).substr(-4);
 }
+var memDump = function (m) {
+  var dump = '';
+  for (var i = 0; i < m.length; ++i) {
+    var v;
+    if ((v = m[i]) !== undefined) {
+      dump += ('@0x' + i.toString(16) + '=' + binaryWord(v) + ' ');
+    }
+  }
+  return dump;
+}
 var columns = {
   pc: 'PC',
-  prog: 'PROG',
+  flags: '~(00ZC)',
   a: 'A',
   b2: 'B2',
   b1: 'B1',
@@ -32,10 +43,11 @@ var columns = {
   c2: 'C2',
   c1: 'C1',
   c0: 'C0',
-  flags: '~(00ZC)',
+  mem: 'MEM',
+  prog: 'PROG',
   control0: 'CONTROL0',
   control1: 'CONTROL1',
-  control2: 'CONTROL2'
+  control2: 'CONTROL2',
 };
 var prog = new Buffer(0);
 process.stdin.resume();
@@ -128,7 +140,8 @@ process.stdin.on('end', function () {
       flags: binaryWord(flags),
       control0: binaryByte(control0),
       control1: binaryByte(control1),
-      control2: binaryByte(control2)
+      control2: binaryByte(control2),
+      mem: memDump(mem)
     });
 
     var data = null;
@@ -162,8 +175,11 @@ process.stdin.on('end', function () {
       if (!notLDPC) {
         pc = address;
       }
-      if (!notCSRAM) {
-        data = mem[address];
+      if (!notCSRAM && notWERAM) {
+        if ((data = mem[address]) === undefined) {
+          console.error('Reading uninitialized RAM');
+          stringifier.end();
+        }
         dataActive++;
       }
     }
@@ -206,7 +222,7 @@ process.stdin.on('end', function () {
     }
 
     // handle data inputs
-    if (!notLDB0 || !notLDB1 || !notLDB2 || !notLDC0 || !notLDC1 || !notLDC2 || !notLDFL || !notLDOUT) {
+    if (!notLDB0 || !notLDB1 || !notLDB2 || !notLDC0 || !notLDC1 || !notLDC2 || !notLDFL || !notLDOUT || (!notCSRAM && !notWERAM)) {
       if (dataActive == 0) {
         console.error('Data inactive');
         stringifier.end();
@@ -246,6 +262,9 @@ process.stdin.on('end', function () {
       }
       if (!notLDOUT) {
         outPorts[currOperand] = data;
+      }
+      if (!notCSRAM && !notWERAM) {
+        mem[address] = data;
       }
     }
 
