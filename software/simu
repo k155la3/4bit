@@ -12,7 +12,7 @@ var c0 = 0;
 var c1 = 0;
 var c2 = 0;
 var inPort = 0;
-var outPorts = {};
+var outPorts = [];
 var mem = [];
 var ucode0 = fs.readFileSync('ucode0.bin');
 var ucode1 = fs.readFileSync('ucode1.bin');
@@ -23,11 +23,11 @@ var binaryByte = function (x) {
 var binaryWord = function (x) {
   return '0b' + ('0000' + (x).toString(2)).substr(-4);
 }
-var memDump = function (m) {
+var arrDump = function (arr) {
   var dump = '';
-  for (var i = 0; i < m.length; ++i) {
+  for (var i = 0; i < arr.length; ++i) {
     var v;
-    if ((v = m[i]) !== undefined) {
+    if ((v = arr[i]) !== undefined) {
       dump += ('@0x' + i.toString(16) + '=' + binaryWord(v) + ' ');
     }
   }
@@ -44,10 +44,7 @@ var columns = {
   c1: 'C1',
   c0: 'C0',
   mem: 'MEM',
-  prog: 'PROG',
-  control0: 'CONTROL0',
-  control1: 'CONTROL1',
-  control2: 'CONTROL2',
+  out: 'OUT'
 };
 var prog = new Buffer(0);
 process.stdin.resume();
@@ -74,7 +71,7 @@ process.stdin.on('end', function () {
     if (m) {
       switch (s) {
         case 0x1:
-          return f((~arg(a)) | (~arg(b)));
+          return f((~(arg(a) | arg(b))) & 0xf);
         case 0xa:
           return f(arg(b));
         default:
@@ -94,7 +91,21 @@ process.stdin.on('end', function () {
       }
     }
   }
-  for (var i = 0; i < 64; ++i) {
+  for (var i = 0; i < 1024; ++i) {
+    stringifier.write({
+      pc: '0x' + pc.toString(16),
+      a: binaryWord(a),
+      b0: binaryWord(b0),
+      b1: binaryWord(b1),
+      b2: binaryWord(b2),
+      c0: binaryWord(c0),
+      c1: binaryWord(c1),
+      c2: binaryWord(c2),
+      flags: binaryWord(flags),
+      mem: arrDump(mem),
+      out: arrDump(outPorts)
+    });
+
     var currProg = prog[pc];
     var currOperand = currProg & 0xf;
     var currUcode = currProg | (flags << 8);
@@ -126,23 +137,6 @@ process.stdin.on('end', function () {
     var notLDC2 = (control2 & 0x20);
     var notOEB = (control2 & 0x40);
     var notOEC = (control2 & 0x80);
-
-    stringifier.write({
-      pc: '0x' + pc.toString(16),
-      prog: binaryByte(currProg),
-      a: binaryWord(a),
-      b0: binaryWord(b0),
-      b1: binaryWord(b1),
-      b2: binaryWord(b2),
-      c0: binaryWord(c0),
-      c1: binaryWord(c1),
-      c2: binaryWord(c2),
-      flags: binaryWord(flags),
-      control0: binaryByte(control0),
-      control1: binaryByte(control1),
-      control2: binaryByte(control2),
-      mem: memDump(mem)
-    });
 
     var data = null;
     var dataActive = 0;
@@ -253,7 +247,7 @@ process.stdin.on('end', function () {
         else {
           flags &= (~0x1);
         }
-        if (data === 0) {
+        if (ALUR.f === 0) {
           flags &= (~0x2);
         }
         else {
