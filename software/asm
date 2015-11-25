@@ -188,15 +188,31 @@ process.stdin.on('end', function () {
       else {
         var renamedArg;
         if (renamedArg = renaming[arg.name]) {
-          if (arg.slice !== undefined) {
-            if (renamedArg.slice !== undefined) {
-              exit(p.lnum, util.format('"%s" is double-sliced', renamedArg.name));
+          if (renamedArg.lit !== undefined) {
+            if (arg.slice !== undefined) {
+              if (arg.slice < 0 || arg.slice >= renamedArg.size) {
+                exit(lnum, util.format('"0x%s/%d" slice is to large; maximum is %d', renamedArg.lit.toString(16), arg.slice, renamedArg.size - 1));
+              }
+              delete arg.name;
+              arg.lit = (((renamedArg.lit >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
+              arg.size = 1;
+              return arg;
             }
-            arg.name = renamedArg.name;
-            return arg;
+            else {
+              return renamedArg;
+            }
           }
           else {
-            return renamedArg;
+            if (arg.slice !== undefined) {
+              if (renamedArg.slice !== undefined) {
+                exit(p.lnum, util.format('"%s" is double-sliced', renamedArg.name));
+              }
+              arg.name = renamedArg.name;
+              return arg;
+            }
+            else {
+              return renamedArg;
+            }
           }
         }
         else {
@@ -276,8 +292,7 @@ process.stdin.on('end', function () {
           if (arg.slice < 0 || arg.slice >= name.size) {
             exit(lnum, util.format('"%s/%d" slice is to large; maximum is %d', arg.name, arg.slice, name.size - 1));
           }
-          var x = (((name.val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
-          return x;
+          return (((name.val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
         }
         else {
           if (name.size != expSize) {
@@ -299,6 +314,7 @@ process.stdin.on('end', function () {
   for (var i = 0; i < objProg.length; ++i) {
     var p;
     if (p = objProg[i]) {
+      //console.error('0x' + i.toString(16) + ' ' + p.lnum)
       if (p.args.length === 1) {
         obj.writeWithArg(p.code, resolveArg(p.args[0], 1, p.lnum), i);
       }
