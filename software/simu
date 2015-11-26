@@ -66,7 +66,7 @@ process.stdin.on('end', function () {
       return x;
     }
     var f = function (x) {
-      return {f: (x & 0xf), notCROUT: (x >> 4) ? 0 : 1};
+      return {f: (x & 0xf), notCROUT: (x & 0x10) ? 0 : 1};
     };
     if (m) {
       switch (s) {
@@ -91,7 +91,7 @@ process.stdin.on('end', function () {
       }
     }
   }
-  for (var i = 0; i < 1024; ++i) {
+  while (true) {
     stringifier.write({
       pc: '0x' + pc.toString(16),
       a: binaryWord(a),
@@ -142,6 +142,10 @@ process.stdin.on('end', function () {
     var dataActive = 0;
     var address = null;
     var addressActive = 0;
+
+    if (!INCPC && notLDPC) {
+      break;
+    }
 
     // handle address outputs
     if (!notOEB) {
