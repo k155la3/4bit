@@ -23,11 +23,11 @@ process.stdin.on('end', function () {
   var macroProg = null;
   var codes = {
     'nop': 0,
-    'ld_a_@b': 0x01,
-    'add_@b': 0x02,
-    'cmp_@b': 0x03,
-    'nor_@b': 0x04,
-    'ld_a_@c': 0x05,
+    'ld_a_@c': 0x01,
+    'add_@c': 0x02,
+    'cmp_@c': 0x03,
+    'nor_@c': 0x04,
+    'ld_a_@b': 0x05,
     'bc_b': 0x09,
     'bz_b': 0x0a,
     'bu_b': 0x0b,
