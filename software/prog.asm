@@ -1,13 +1,41 @@
 macro main
-        test_alu
-        test_ram
-        clear_error
+        % test_alu
+        % test_ram
+        buzz 0x1000 0x0004
 end
 
-macro   clear_error
-        ld_a 0x4
-        out_a 0xe
-end
+macro   buzz x y
+
+        def i*4
+
+        st_4d 0x0000 i
+loop:   add_d4 i 0x0001
+
+        ld_a 0x0
+        out_a 0xd
+        delay y
+
+        ld_a 0xf
+        out_a 0xd
+        delay y
+
+        cmp_d4 i x
+        bz done
+        bu loop
+done:   nop
+        end
+
+macro   delay x
+
+        def i*4
+
+        st_4d 0x0000 i
+loop:   add_d4 i 0x0001
+        cmp_d4 i x
+        bz done
+        bu loop
+done:   nop
+        end
 
 macro   test_ram
 
