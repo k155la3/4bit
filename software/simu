@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
+var _ = require('lodash');
 var csv = require('csv');
 var fs = require('fs');
+var program = require('commander');
+var util = require('util');
+var repl = require('repl');
+
 var pc = 0;
 var a = 0;
 var flags = 0;
@@ -14,6 +19,7 @@ var c2 = 0;
 var inPort = 0;
 var outPorts = [];
 var mem = [];
+
 var ucode0 = fs.readFileSync('ucode0.bin');
 var ucode1 = fs.readFileSync('ucode1.bin');
 var ucode2 = fs.readFileSync('ucode2.bin');
@@ -47,52 +53,108 @@ var columns = {
   out: 'OUT'
 };
 var prog = new Buffer(0);
-process.stdin.resume();
-process.stdin.on('data', function (buf) { prog = Buffer.concat([buf, prog]); });
-process.stdin.on('end', function () {
-  if (!prog.length) {
-    console.error('Empty object');
-    process.exit(1);
+
+program
+  .version('0.0.1')
+  .option('-m, --module [value]', 'Module [output]', 'output')
+  .option('-t, --trace', 'Write trace file')
+  .parse(process.argv);
+
+prog = fs.readFileSync(program.module + '.obj');
+map = JSON.parse(fs.readFileSync(program.module + '.map', 'utf8'));
+defs = JSON.parse(fs.readFileSync(program.module + '.def', 'utf8'));
+
+var trace;
+if (program.trace) {
+  trace = csv.stringify({ header: true, columns: columns });
+  trace.pipe(fs.createWriteStream(program.module + '_trace.csv'));
+}
+
+var dbgCtx = {
+  pc: { inspect: function () { return '0x' + pc.toString(16); }},
+  a: { inspect: function () { return '0x' + a.toString(16); }},
+  b: { inspect: function () { return '0x' + (b0 | (b1 << 4) | (b2 << 8)).toString(16); }},
+  c: { inspect: function () { return '0x' + (c0 | (c1 << 4) | (c2 << 8)).toString(16); }},
+  f: { inspect: function () { return binaryWord(flags); }},
+  m: function (addr) {
+    return {
+      inspect: function () {
+        var v = mem[addr];
+        return '0x' + ((v !== undefined) ? v.toString(16) : '?');
+      }
+    }
+  },
+  m4: function (addr) {
+    return {
+      inspect: function () {
+        var v0 = mem[addr];
+        var v1 = mem[addr + 1];
+        var v2 = mem[addr + 2];
+        var v3 = mem[addr + 3];
+        return '0x' + ((v3 !== undefined) ? v3.toString(16) : '?') +
+          ((v2 !== undefined) ? v2.toString(16) : '?') +
+          ((v1 !== undefined) ? v1.toString(16) : '?') +
+          ((v0 !== undefined) ? v0.toString(16) : '?');
+      }
+    }
   }
-  var stringifier = csv.stringify({ header: true, columns: columns });
-  stringifier.pipe(process.stdout);
-  var runAlu = function (m, s, notCRIN, a, b) {
-    var arg = function (x) {
-      if (x === null) {
-        console.error('ALU argument inactive');
-        stringifier.end();
-        process.exit(1);
-      }
-      return x;
+};
+var dbg = repl.start({ prompt: program.module + '> ' });
+_.merge(dbg.context, dbgCtx);
+
+dbg.on('reset', function (context) {
+  _.merge(dbg.context, dbgCtx);
+});
+dbg.on('exit', function (context) {
+  if (trace) {
+    trace.end();
+  }
+});
+
+var error =  function (msg) {
+  return { error: msg };
+}
+var warning =  function (msg) {
+  return { warning: msg };
+}
+
+var runAlu = function (m, s, notCRIN, a, b) {
+  var arg = function (x) {
+    if (x === null) {
+      return error('ALU argument inactive');
     }
-    var f = function (x) {
-      return {f: (x & 0xf), notCROUT: (x & 0x10) ? 0 : 1};
-    };
-    if (m) {
-      switch (s) {
-        case 0x1:
-          return f((~(arg(a) | arg(b))) & 0xf);
-        case 0xa:
-          return f(arg(b));
-        default:
-          return null;
-      }
-    }
-    else {
-      switch (s) {
-        case 0x0:
-          return f(arg(a) + (notCRIN ? 0 : 1));
-        case 0x6:
-          return f((arg(a) - arg(b) - 1) + (notCRIN ? 0 : 1));
-        case 0x9:
-          return f((arg(a) + arg(b)) + (notCRIN ? 0 : 1));
-        default:
-          return null;
-      }
+    return x;
+  }
+  var f = function (x) {
+    return {f: (x & 0xf), notCROUT: (x & 0x10) ? 0 : 1};
+  };
+  if (m) {
+    switch (s) {
+      case 0x1:
+        return f((~(arg(a) | arg(b))) & 0xf);
+      case 0xa:
+        return f(arg(b));
+      default:
+        return error('Unsupported ALU operation');
     }
   }
-  while (true) {
-    stringifier.write({
+  else {
+    switch (s) {
+      case 0x0:
+        return f(arg(a) + (notCRIN ? 0 : 1));
+      case 0x6:
+        return f((arg(a) - arg(b) - 1) + (notCRIN ? 0 : 1));
+      case 0x9:
+        return f((arg(a) + arg(b)) + (notCRIN ? 0 : 1));
+      default:
+        return error('Unsupported ALU operation');
+    }
+  }
+}
+
+var runMachine = function () {
+  if (trace) {
+    trace.write({
       pc: '0x' + pc.toString(16),
       a: binaryWord(a),
       b0: binaryWord(b0),
@@ -105,170 +167,296 @@ process.stdin.on('end', function () {
       mem: arrDump(mem),
       out: arrDump(outPorts)
     });
+  }
 
-    var currProg = prog[pc];
-    var currOperand = currProg & 0xf;
-    var currUcode = currProg | (flags << 8);
+  var currProg = prog[pc];
+  var currOperand = currProg & 0xf;
+  var currUcode = currProg | (flags << 8);
 
-    var control0 = ucode0[currUcode];
-    var control1 = ucode1[currUcode];
-    var control2 = ucode2[currUcode];
+  var control0 = ucode0[currUcode];
+  var control1 = ucode1[currUcode];
+  var control2 = ucode2[currUcode];
 
-    var INCPC = (control0 & 0x1);
-    var notLDPC = (control0 & 0x2);
-    var notCRIN = (control0 & 0x4);
-    var ALUM = (control0 & 0x8);
-    var ALUS = (control0 >> 4);
+  var INCPC = (control0 & 0x1);
+  var notLDPC = (control0 & 0x2);
+  var notCRIN = (control0 & 0x4);
+  var ALUM = (control0 & 0x8);
+  var ALUS = (control0 >> 4);
 
-    var notOEOP = (control1 & 0x1);
-    var notLDACU = (control1 & 0x2);
-    var notLDFL = (control1 & 0x4);
-    var notOEALU = (control1 & 0x8);
-    var notOEIN = (control1 & 0x10);
-    var notLDOUT = (control1 & 0x20);
-    var notCSRAM = (control1 & 0x40);
-    var notWERAM = (control1 & 0x80);
+  var notOEOP = (control1 & 0x1);
+  var notLDACU = (control1 & 0x2);
+  var notLDFL = (control1 & 0x4);
+  var notOEALU = (control1 & 0x8);
+  var notOEIN = (control1 & 0x10);
+  var notLDOUT = (control1 & 0x20);
+  var notCSRAM = (control1 & 0x40);
+  var notWERAM = (control1 & 0x80);
 
-    var notLDB0 = (control2 & 0x1);
-    var notLDB1 = (control2 & 0x2);
-    var notLDB2 = (control2 & 0x4);
-    var notLDC0 = (control2 & 0x8);
-    var notLDC1 = (control2 & 0x10);
-    var notLDC2 = (control2 & 0x20);
-    var notOEB = (control2 & 0x40);
-    var notOEC = (control2 & 0x80);
+  var notLDB0 = (control2 & 0x1);
+  var notLDB1 = (control2 & 0x2);
+  var notLDB2 = (control2 & 0x4);
+  var notLDC0 = (control2 & 0x8);
+  var notLDC1 = (control2 & 0x10);
+  var notLDC2 = (control2 & 0x20);
+  var notOEB = (control2 & 0x40);
+  var notOEC = (control2 & 0x80);
 
-    var data = null;
-    var dataActive = 0;
-    var address = null;
-    var addressActive = 0;
+  var data = null;
+  var dataActive = 0;
+  var address = null;
+  var addressActive = 0;
 
-    if (!INCPC && notLDPC) {
-      break;
+  if (!INCPC && notLDPC) {
+    return warning('Halted at PC: 0x' + pc.toString(16));
+  }
+
+  // handle address outputs
+  if (!notOEB) {
+    address = b0 | (b1 << 4) | (b2 << 8);
+    addressActive++;
+  }
+  if (!notOEC) {
+    address = c0 | (c1 << 4) | (c2 << 8);
+    addressActive++;
+  }
+
+  if (addressActive > 1) {
+    return error('Address conflict');
+  }
+
+  // handle address inputs
+  if (!notLDPC || !notCSRAM) {
+    if (addressActive == 0) {
+      return error('Address inactive');
     }
-
-    // handle address outputs
-    if (!notOEB) {
-      address = b0 | (b1 << 4) | (b2 << 8);
-      addressActive++;
+    if (!notLDPC) {
+      pc = address;
     }
-    if (!notOEC) {
-      address = c0 | (c1 << 4) | (c2 << 8);
-      addressActive++;
-    }
-
-    if (addressActive > 1) {
-      console.error('Address conflict');
-      stringifier.end();
-      process.exit(1);
-    }
-
-    // handle address inputs
-    if (!notLDPC || !notCSRAM) {
-      if (addressActive == 0) {
-        console.error('Address inactive');
-        stringifier.end();
-        process.exit(1);
+    if (!notCSRAM && notWERAM) {
+      if ((data = mem[address]) === undefined) {
+        warning('Reading uninitialized RAM at 0x' + address.toString(16) + ' at PC: 0x' + pc.toString(16));
       }
-      if (!notLDPC) {
-        pc = address;
-      }
-      if (!notCSRAM && notWERAM) {
-        if ((data = mem[address]) === undefined) {
-          console.error('Reading uninitialized RAM');
-          stringifier.end();
-        }
-        dataActive++;
-      }
-    }
-
-    // handle data outputs
-    if (!notOEOP) {
-      data = currOperand;
       dataActive++;
-    }
-    if (!notOEIN) {
-      data = inPort;
-      dataActive++;
-    }
-    var ALUR = runAlu(
-      ALUM,
-      ALUS,
-      notCRIN,
-      a,
-      data // INPUT! -- here is the issue with nibbler
-    );
-    if (!notLDACU || !notOEALU) {
-      if (ALUR === null) {
-        console.error('Unsupported ALU operation');
-        stringifier.end();
-        process.exit(1);
-      }
-      if (!notLDACU) {
-        a = ALUR.f;
-      }
-      if (!notOEALU) {
-        data = ALUR.f;
-        dataActive++;
-      }
-    }
-
-    if (dataActive > 1) {
-      console.error('Data conflict');
-      stringifier.end();
-      process.exit(1);
-    }
-
-    // handle data inputs
-    if (!notLDB0 || !notLDB1 || !notLDB2 || !notLDC0 || !notLDC1 || !notLDC2 || !notLDFL || !notLDOUT || (!notCSRAM && !notWERAM)) {
-      if (dataActive == 0) {
-        console.error('Data inactive');
-        stringifier.end();
-        process.exit(1);
-      }
-      if (!notLDB0) {
-        b0 = data;
-      }
-      if (!notLDB1) {
-        b1 = data;
-      }
-      if (!notLDB2) {
-        b2 = data;
-      }
-      if (!notLDC0) {
-        c0 = data;
-      }
-      if (!notLDC1) {
-        c1 = data;
-      }
-      if (!notLDC2) {
-        c2 = data;
-      }
-      if (!notLDFL) {
-        if (ALUR.notCROUT) {
-          flags |= 0x1;
-        }
-        else {
-          flags &= (~0x1);
-        }
-        if (ALUR.f === 0) {
-          flags &= (~0x2);
-        }
-        else {
-          flags |= 0x2;
-        }
-      }
-      if (!notLDOUT) {
-        outPorts[currOperand] = data;
-      }
-      if (!notCSRAM && !notWERAM) {
-        mem[address] = data;
-      }
-    }
-
-    if (INCPC) {
-      pc++;
     }
   }
-  stringifier.end();
+
+  // handle data outputs
+  if (!notOEOP) {
+    data = currOperand;
+    dataActive++;
+  }
+  if (!notOEIN) {
+    data = inPort;
+    dataActive++;
+  }
+  var ALUR = runAlu(
+    ALUM,
+    ALUS,
+    notCRIN,
+    a,
+    data // INPUT! -- here is the issue with nibbler
+  );
+  if (!notLDACU || !notOEALU) {
+    if (ALUR.f === undefined) {
+      return ALUR;
+    }
+    if (!notLDACU) {
+      a = ALUR.f;
+    }
+    if (!notOEALU) {
+      data = ALUR.f;
+      dataActive++;
+    }
+  }
+
+  if (dataActive > 1) {
+    return error('Data conflict');
+  }
+
+  // handle data inputs
+  if (!notLDB0 || !notLDB1 || !notLDB2 || !notLDC0 || !notLDC1 || !notLDC2 || !notLDFL || !notLDOUT || (!notCSRAM && !notWERAM)) {
+    if (dataActive == 0) {
+      return error('Data inactive');
+    }
+    if (!notLDB0) {
+      b0 = data;
+    }
+    if (!notLDB1) {
+      b1 = data;
+    }
+    if (!notLDB2) {
+      b2 = data;
+    }
+    if (!notLDC0) {
+      c0 = data;
+    }
+    if (!notLDC1) {
+      c1 = data;
+    }
+    if (!notLDC2) {
+      c2 = data;
+    }
+    if (!notLDFL) {
+      if (ALUR.notCROUT) {
+        flags |= 0x1;
+      }
+      else {
+        flags &= (~0x1);
+      }
+      if (ALUR.f === 0) {
+        flags &= (~0x2);
+      }
+      else {
+        flags |= 0x2;
+      }
+    }
+    if (!notLDOUT) {
+      outPorts[currOperand] = data;
+    }
+    if (!notCSRAM && !notWERAM) {
+      mem[address] = data;
+    }
+  }
+
+  if (INCPC) {
+    pc++;
+  }
+  return { success: true };
+};
+
+var sources = {};
+
+var showLine = function (lines, iname, lnum, prefix, suffix) {
+  if (lnum > 0 && lnum <= lines.length) {
+    dbg.output.write(util.format('%s:%s%s%s%s\n', iname, ('000000' + lnum).substr(-6), prefix, lines[lnum - 1], suffix));
+  }
+}
+var afterRun = function (r) {
+  if (r.error) {
+    dbg.output.write(util.format('[ERROR] %s\n', r.error));
+    process.exit(1);
+  }
+  if (r.warning) {
+    dbg.output.write(util.format('[WARNING] %s\n', r.warning));
+  }
+  var p;
+  if (p = map[pc]) {
+    var lines = sources[p.iname];
+    if (!lines) {
+      lines = fs.readFileSync(p.iname, 'utf8').split(/\n|;/);
+      sources[p.iname] = lines;
+    }
+    var suffix = _.reduce(p.args, function (s, arg) {
+      if (arg.name) {
+        var def;
+        if (def = defs[arg.name]) {
+          if (def.alloc) {
+            return s + util.format(' %s/%d=0x%s', arg.name, def.size, def.val.toString(16));
+          }
+          if (def.label) {
+            return s + util.format(' %s:%d', p.iname, map[def.val].lnum);
+          }
+        }
+      }
+      return s;
+    }, '');
+    showLine(lines, p.iname, p.lnum - 4, '|', '');
+    showLine(lines, p.iname, p.lnum - 3, '|', '');
+    showLine(lines, p.iname, p.lnum - 2, '|', '');
+    showLine(lines, p.iname, p.lnum - 1, '|', '');
+    showLine(lines, p.iname, p.lnum, '>', suffix);
+    showLine(lines, p.iname, p.lnum + 1, '|', '');
+    showLine(lines, p.iname, p.lnum + 2, '|', '');
+    showLine(lines, p.iname, p.lnum + 3, '|', '');
+    showLine(lines, p.iname, p.lnum + 4, '|', '');
+  }
+  else {
+    dbg.output.write(util.format('[WARNING] No symbols\n'));
+  }
+};
+
+var breakpoints = {};
+var go = function() {
+  var r;
+  do {
+    r = runMachine();
+    var p;
+    if (p = map[pc]) {
+      var lines;
+      if ((lines = breakpoints[p.iname]) !== undefined) {
+        if (lines[p.lnum]) {
+          break;
+        }
+      }
+    }
+  } while(r.success);
+  afterRun(r);
+  dbg.displayPrompt();
+};
+var addBreakpoint = function(location) {
+  var parts = location.split(':');
+  if (parts.length === 2) {
+    var lines = breakpoints[parts[0]];
+    if (!lines) {
+      lines = breakpoints[parts[0]] = {};
+    }
+    lines[parseInt(parts[1])] = true;
+  }
+  dbg.displayPrompt();
+};
+var step = function() {
+  var r = runMachine();
+  afterRun(r);
+  dbg.displayPrompt();
+};
+var stepOver = function() {
+  var p;
+  if ((p = map[pc]) && p.macro) {
+    var ret = p.ret;
+    var branch;
+    if (p.args.length) {
+      var def;
+      if ((def = defs[p.args[0].name]) && def.label) {
+        branch = def.val;
+      }
+    }
+    var r;
+    do {
+      r = runMachine();
+    } while(r.success && (pc != ret) && (pc != branch));
+    afterRun(r);
+    dbg.displayPrompt();
+  }
+  else {
+    step();
+  }
+};
+var reset = function() {
+  pc = 0;
+  afterRun({});
+  dbg.displayPrompt();
+};
+
+dbg.defineCommand('b', {
+  help: 'Add breakpoint',
+  action: addBreakpoint
 });
+dbg.defineCommand('g', {
+  help: 'Continue execution',
+  action: go
+});
+dbg.defineCommand('s', {
+  help: 'Step execution',
+  action: step
+});
+dbg.defineCommand('so', {
+  help: 'Step execution',
+  action: stepOver
+});
+dbg.defineCommand('r', {
+  help: 'Reset execution',
+  action: reset
+});
+
+afterRun({});
+dbg.displayPrompt();
