@@ -15,19 +15,19 @@ macro   test_ram
         def k*4
         def s*4
 
-        st4 s i
-loop:   add4 i 0x0004
-        rst4 0xa55a i
-        rld4 k i
-        cmp4 k 0xa55a
-        bz cont
+        st_4d s i
+loop:   add_d4 i 0x0004
+        st_4i 0xa55a i
+        ld_di k i
+        cmp_d4 k 0xa55a
+        bz cont0
         hlt
-        rst4 0x5aa5 i
-        rld4 k i
-        cmp4 k 0x5aa5
-        bz cont
+cont0:  st_4i 0x5aa5 i
+        ld_di k i
+        cmp_d4 k 0x5aa5
+        bz cont1
         hlt
-cont:   cmp4 i 0x0ffc
+cont1:  cmp_d4 i 0x0ffc
         bz done
         bu loop
 done:   nop
