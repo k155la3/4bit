@@ -5,26 +5,25 @@ var util = require('util');
 var program = require('commander');
 var fs = require('fs');
 
-var exit =  function (lnum, msg) {
-  console.error(util.format('%d: [ERROR] %s', lnum, msg));
+var exit =  function (iname, lnum, msg) {
+  console.error(util.format('%s:%d [ERROR] %s', iname, lnum, msg));
   process.exit(1);
 }
 
-var inputs = function (v) {
+var inputFileNames = function (v) {
   return v.split(' ');
 };
 
 program
   .version('0.0.1')
-  .option('-i, --inputs <items>', 'Input files', inputs)
+  .option('-i, --inputs <items>', 'Input files', inputFileNames)
   .option('-o, --output [value]', 'Output module [output]', 'output')
   .parse(process.argv);
 
-var asm = '';
+var inputs = [];
 _.forEach(program.inputs, function (fileName) {
-  asm += fs.readFileSync(fileName, 'utf8');
+  inputs.push({ name: fileName, lines: fs.readFileSync(fileName, 'utf8').split(/\n|;/) });
 });
-var lines = asm.split(/\n|;/);
 
 // Pass 1
 var base = 0;
@@ -71,114 +70,118 @@ var codes = {
 var numOfArgs = function (code) {
   return ((code | 0x0f) !== 0x0f && (code & 0xf0) !== 0xf0) ? 1 : 0;
 };
-var parseArg = function (arg, lnum) {
-  var parts0 = arg.split('/')
-  if (parts0.length === 2) {
-    var name = parts0[0];
-    var slice;
-    var step;
-    var parts1 = parts0[1].split('+')
-    if (parts1.length === 2) {
-      slice = parseInt(parts1[0]);
-      step = parseInt(parts1[1]);
-      if (isNaN(step) || step > 3) {
-        exit(lnum, util.format('"%s" invalid step', arg));
-      }
-    }
-    else {
-      slice = parseInt(parts0[1]);
-    }
-    if (isNaN(slice) || slice > 3) {
-      exit(lnum, util.format('"%s" invalid slice', arg));
-    }
-    return { name: name, slice: slice, step: step };
-  }
-  else if (arg.startsWith('0x')) {
-    var hexVal = arg.substr(2);
-    return { lit: parseInt(hexVal, 16), size: hexVal.length };
-  }
-  else {
-    return { name: arg };
-  }
-};
-for (var i = 0; i < lines.length; ++i) {
-  var lnum = i + 1;
-  var tokens = _.takeWhile(lines[i].split(/\t| /).filter(function (t) { return t.length; }), function (t) { return t !== '%'; });
-  if (!tokens.length) continue;
-  if (tokens[0] === 'end') {
-    if (currMacro) {
-      currMacro = null;
-    }
-    else {
-      exit(lnum, util.format('Unexpected "end"'));
-    }
-  }
-  else if (currMacro) {
-    if (tokens[0] === 'def') {
-      var parts = tokens[1].split('=0x')
-      if (parts.length === 2) {
-        var val;
-        if (isNaN(val = parseInt(parts[1], 16))) {
-          exit(lnum, util.format('"%s" invalid hexadecimal', parts[1]));
+for (var i = 0; i < inputs.length; ++i) {
+  var input = inputs[i];
+  for (var k = 0; k < input.lines.length; ++k) {
+    var lnum = k + 1;
+    var iname = input.name;
+    var parseArg = function (arg) {
+      var parts0 = arg.split('/')
+      if (parts0.length === 2) {
+        var name = parts0[0];
+        var slice;
+        var step;
+        var parts1 = parts0[1].split('+')
+        if (parts1.length === 2) {
+          slice = parseInt(parts1[0]);
+          step = parseInt(parts1[1]);
+          if (isNaN(step) || step > 3) {
+            exit(iname, lnum, util.format('"%s" invalid step', arg));
+          }
         }
-        currMacro.defs[parts[0]] = { val: val, size: parts[1].length };
+        else {
+          slice = parseInt(parts0[1]);
+        }
+        if (isNaN(slice) || slice > 3) {
+          exit(iname, lnum, util.format('"%s" invalid slice', arg));
+        }
+        return { name: name, slice: slice, step: step };
+      }
+      else if (arg.startsWith('0x')) {
+        var hexVal = arg.substr(2);
+        return { lit: parseInt(hexVal, 16), size: hexVal.length };
       }
       else {
-        parts = tokens[1].split('*')
+        return { name: arg };
+      }
+    };
+    var tokens = _.takeWhile(input.lines[k].split(/\t| /).filter(function (t) { return t.length; }), function (t) { return t !== '%'; });
+    if (!tokens.length) continue;
+    if (tokens[0] === 'end') {
+      if (currMacro) {
+        currMacro = null;
+      }
+      else {
+        exit(iname, lnum, util.format('Unexpected "end"'));
+      }
+    }
+    else if (currMacro) {
+      if (tokens[0] === 'def') {
+        var parts = tokens[1].split('=0x')
         if (parts.length === 2) {
-          var size;
-          if (isNaN(size = parseInt(parts[1]))) {
-            exit(lnum, util.format('"%s" invalid name size', parts[1]));
+          var val;
+          if (isNaN(val = parseInt(parts[1], 16))) {
+            exit(iname, lnum, util.format('"%s" invalid hexadecimal', parts[1]));
           }
-          if (size == 2) {
-            while (((base & 0xf) | 0xe) !== 0xe) {
-              base++;
+          currMacro.defs[parts[0]] = { val: val, size: parts[1].length };
+        }
+        else {
+          parts = tokens[1].split('*')
+          if (parts.length === 2) {
+            var size;
+            if (isNaN(size = parseInt(parts[1]))) {
+              exit(iname, lnum, util.format('"%s" invalid name size', parts[1]));
             }
-          }
-          else if (size > 2 && size <= 4) {
-            while (((base & 0xf) | 0xc) !== 0xc) {
-              base++;
+            if (size == 2) {
+              while (((base & 0xf) | 0xe) !== 0xe) {
+                base++;
+              }
             }
+            else if (size > 2 && size <= 4) {
+              while (((base & 0xf) | 0xc) !== 0xc) {
+                base++;
+              }
+            }
+            currMacro.defs[parts[0]] = { val: base, size: 4, alloc: true };
+            base += size;
           }
-          currMacro.defs[parts[0]] = { val: base, size: 4, alloc: true };
-          base += size;
         }
-      }
-    }
-    else {
-      var label = null;
-      var y = 0;
-      if (tokens[y].length > 1 && tokens[y][tokens[y].length - 1] === ':') {
-        label = tokens[y].substr(0, tokens[y].length - 1);
-        y += 1;
-      }
-      var name = tokens[y];
-      var args = _.map(tokens.slice(y + 1), function (arg) { return parseArg(arg, lnum); });
-      var code;
-      var p;
-      if ((code = codes[name]) !== undefined) {
-        var expNumOfArgs = numOfArgs(code)
-        if (expNumOfArgs > args.length) {
-          exit(lnum, util.format('"%s" has less arguments than expected', name));
-        }
-        else if (expNumOfArgs < args.length) {
-          exit(lnum, util.format('"%s" has more arguments than expected', name));
-        }
-        p = {code: code, args: args, label: label, lnum: lnum};
       }
       else {
-        p = {macro: name, args: args, label: label, lnum: lnum};
+        var label = null;
+        var y = 0;
+        if (tokens[y].length > 1 && tokens[y][tokens[y].length - 1] === ':') {
+          label = tokens[y].substr(0, tokens[y].length - 1);
+          y += 1;
+        }
+        var name = tokens[y];
+        var args = _.map(tokens.slice(y + 1), function (arg) { return parseArg(arg, lnum, iname); });
+        var code;
+        var p;
+        if ((code = codes[name]) !== undefined) {
+          var expNumOfArgs = numOfArgs(code)
+          if (expNumOfArgs > args.length) {
+            exit(iname, lnum, util.format('"%s" has less arguments than expected', name));
+          }
+          else if (expNumOfArgs < args.length) {
+            exit(iname, lnum, util.format('"%s" has more arguments than expected', name));
+          }
+          p = {code: code, args: args, label: label, lnum: lnum, iname: iname};
+        }
+        else {
+          p = {macro: name, args: args, label: label, lnum: lnum, iname: iname};
+        }
+        currMacro.prog.push(p);
       }
-      currMacro.prog.push(p);
     }
-  }
-  else if (tokens[0] === 'macro' && tokens.length > 1) {
-    if (currMacro) {
-      exit(lnum, util.format('Expected "end"'));
-    }
-    else {
-      currMacro = { prog: [], defs: {}, aliases: tokens.slice(2) }
-      macros[tokens[1]] = currMacro;
+    else if (tokens[0] === 'macro' && tokens.length > 1) {
+      if (currMacro) {
+        exit(iname, lnum, util.format('Expected "end"'));
+      }
+      else {
+        currMacro = { prog: [], defs: {}, aliases: tokens.slice(2) }
+        macros[tokens[1]] = currMacro;
+      }
     }
   }
 }
@@ -192,46 +195,6 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
   var rename = function (name) {
     return namespace.macro + '.' + name + '.' + namespace.scope;
   };
-  var renameArg = function (arg) {
-    if (arg.lit !== undefined) {
-      return arg;
-    }
-    else {
-      var renamedArg;
-      if (renamedArg = renaming[arg.name]) {
-        if (renamedArg.lit !== undefined) {
-          if (arg.slice !== undefined) {
-            if (arg.slice < 0 || arg.slice >= renamedArg.size) {
-              exit(lnum, util.format('"0x%s/%d" slice is to large; maximum is %d', renamedArg.lit.toString(16), arg.slice, renamedArg.size - 1));
-            }
-            delete arg.name;
-            arg.lit = (((renamedArg.lit >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
-            arg.size = 1;
-            return arg;
-          }
-          else {
-            return renamedArg;
-          }
-        }
-        else {
-          if (arg.slice !== undefined) {
-            if (renamedArg.slice !== undefined) {
-              exit(p.lnum, util.format('"%s" is double-sliced', renamedArg.name));
-            }
-            arg.name = renamedArg.name;
-            return arg;
-          }
-          else {
-            return renamedArg;
-          }
-        }
-      }
-      else {
-        arg.name = rename(arg.name);
-        return arg;
-      }
-    }
-  };
   var renameDef = function (_, name) {
     return rename(name);
   };
@@ -239,6 +202,46 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
   var defs = _.mapKeys(macroDefs, renameDef);
   for (var i = 0; i < prog.length; ++i) {
     var p = prog[i];
+    var renameArg = function (arg) {
+      if (arg.lit !== undefined) {
+        return arg;
+      }
+      else {
+        var renamedArg;
+        if (renamedArg = renaming[arg.name]) {
+          if (renamedArg.lit !== undefined) {
+            if (arg.slice !== undefined) {
+              if (arg.slice < 0 || arg.slice >= renamedArg.size) {
+                exit(p.iname, p.lnum, util.format('"0x%s/%d" slice is to large; maximum is %d', renamedArg.lit.toString(16), arg.slice, renamedArg.size - 1));
+              }
+              delete arg.name;
+              arg.lit = (((renamedArg.lit >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
+              arg.size = 1;
+              return arg;
+            }
+            else {
+              return renamedArg;
+            }
+          }
+          else {
+            if (arg.slice !== undefined) {
+              if (renamedArg.slice !== undefined) {
+                exit(p.iname, p.lnum, util.format('"%s" is double-sliced', renamedArg.name));
+              }
+              arg.name = renamedArg.name;
+              return arg;
+            }
+            else {
+              return renamedArg;
+            }
+          }
+        }
+        else {
+          arg.name = rename(arg.name);
+          return arg;
+        }
+      }
+    };
     p.args = _.map(p.args, renameArg)
     var label = p.label;
     if (label) {
@@ -246,14 +249,14 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
       var name;
       if (name = defs[label]) {
         if (name.label) {
-          exit(p.lnum, util.format('"%s" used as label more than once', label));
+          exit(p.iname, p.lnum, util.format('"%s" used as label more than once', label));
           process.exit(1);
         }
         if (name.alloc) {
-          exit(p.lnum, util.format('"%s" RAM allocation cannot be used as label', label));
+          exit(p.iname, p.lnum, util.format('"%s" RAM allocation cannot be used as label', label));
         }
         if (name.size !== 4) {
-          exit(p.lnum, util.format('"%s" label must be of size 4', label));
+          exit(p.iname, p.lnum, util.format('"%s" label must be of size 4', label));
         }
         addr = name.val;
         name.label = true;
@@ -262,18 +265,16 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
         defs[label] = { val: addr, size: 4, label: true };
       }
     }
-    if (p.code !== undefined) {
-      if (objProg[addr]) {
-        exit(p.lnum, util.format('ROM placement conflict at 0x%s', addr.toString(16)));
-      }
-      objProg[addr] = p;
-      addr += 1;
+    if (objProg[addr]) {
+      exit(p.iname, p.lnum, util.format('ROM placement conflict at 0x%s', addr.toString(16)));
     }
-    else {
+    objProg[addr] = p;
+    addr += 1;
+    if (p.macro !== undefined) {
       var macro;
       if ((macro = macros[p.macro]) !== undefined) {
         if (macro.aliases.length !== p.args.length) {
-          exit(p.lnum, util.format('invalid number of macro arguments for "%s"', p.macro));
+          exit(p.iname, p.lnum, util.format('invalid number of macro arguments for "%s"', p.macro));
         }
         var macroRenaming = {};
         for (var k = 0; k < macro.aliases.length; ++k) {
@@ -283,13 +284,14 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
         }
         var nextNamespace;
         if ((nextNamespace = namespaces[p.macro]) === undefined) {
-          namespaces[macro] = nextNamespace = { macro: p.macro, scope: 0 };
+          namespaces[p.macro] = nextNamespace = { macro: p.macro, scope: 0 };
         }
         generate(macro.prog, macro.defs, macroRenaming, nextNamespace);
+        p.ret = addr;
         nextNamespace.scope++;
       }
       else {
-        exit(p.lnum, util.format('"%s" macro is undefined', p.macro));
+        exit(p.iname, p.lnum, util.format('"%s" macro is undefined', p.macro));
       }
     }
   }
@@ -298,40 +300,11 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
 
 var mainMacro;
 if ((mainMacro = macros['main']) === undefined) {
-  exit(0, util.format('Main macro undefined'));
+  exit('?', 0, util.format('Main macro undefined'));
 }
-generate(mainMacro.prog, mainMacro.defs, {}, '');
+generate(mainMacro.prog, mainMacro.defs, {}, { macro: 'main', scope: 0 });
 
 // Pass 3
-var resolveArg = function (arg, expSize, lnum) {
-  if (arg.lit !== undefined) {
-    if (arg.size != expSize) {
-      exit(lnum, util.format('"0x%s" literal size of %d is invalid; expected size %d', arg.lit.toString(16), arg.size, expSize));
-      process.exit(1);
-    }
-    return arg.lit;
-  }
-  else {
-    var name;
-    if (name = objDefs[arg.name]) {
-      if (arg.slice !== undefined) {
-        if (arg.slice < 0 || arg.slice >= name.size) {
-          exit(lnum, util.format('"%s/%d" slice is to large; maximum is %d', arg.name, arg.slice, name.size - 1));
-        }
-        return (((name.val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
-      }
-      else {
-        if (name.size != expSize) {
-          exit(lnum, util.format('"%s*%d" size mismatch; expected size %d', arg.name, name.size, expSize));
-        }
-        return name.val;
-      }
-    }
-    else {
-      exit(lnum, util.format('"%s" name is not defined', arg.name));
-    }
-  }
-};
 var obj = new Buffer(8192);
 obj.fill(0xf);
 obj.writeWithArg = function (code, immediate, addr) {
@@ -340,8 +313,40 @@ obj.writeWithArg = function (code, immediate, addr) {
 for (var i = 0; i < 8192; ++i) {
   var p;
   if (p = objProg[i]) {
-    if (p.args.length === 1) {
-      obj.writeWithArg(p.code, resolveArg(p.args[0], 1, p.lnum), i);
+    var resolveArg = function (arg, expSize) {
+      if (arg.lit !== undefined) {
+        if (arg.size != expSize) {
+          exit(p.iname, p.lnum, util.format('"0x%s" literal size of %d is invalid; expected size %d', arg.lit.toString(16), arg.size, expSize));
+          process.exit(1);
+        }
+        return arg.lit;
+      }
+      else {
+        var name;
+        if (name = objDefs[arg.name]) {
+          if (arg.slice !== undefined) {
+            if (arg.slice < 0 || arg.slice >= name.size) {
+              exit(p.iname, p.lnum, util.format('"%s/%d" slice is to large; maximum is %d', arg.name, arg.slice, name.size - 1));
+            }
+            return (((name.val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
+          }
+          else {
+            if (name.size != expSize) {
+              exit(p.iname, p.lnum, util.format('"%s*%d" size mismatch; expected size %d', arg.name, name.size, expSize));
+            }
+            return name.val;
+          }
+        }
+        else {
+          exit(p.iname, p.lnum, util.format('"%s" name is not defined', arg.name));
+        }
+      }
+    };
+    if (p.macro) {
+      obj.writeUInt8(0, i);
+    }
+    else if (p.args.length === 1) {
+      obj.writeWithArg(p.code, resolveArg(p.args[0], 1), i);
     }
     else {
       obj.writeUInt8(p.code, i);
