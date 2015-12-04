@@ -184,20 +184,17 @@ var runMachine = function () {
   var ALUS = (control0 >> 4);
 
   var notOEOP = (control1 & 0x1);
-  var notLDACU = (control1 & 0x2);
+  var notLDA = (control1 & 0x2);
   var notLDFL = (control1 & 0x4);
   var notOEALU = (control1 & 0x8);
-  var notOEIN = (control1 & 0x10);
-  var notLDOUT = (control1 & 0x20);
+  var notLDALU = (control1 & 0x10);
+  var notWERAM = (control1 & 0x20);
   var notCSRAM = (control1 & 0x40);
-  var notWERAM = (control1 & 0x80);
 
-  var notLDB0 = (control2 & 0x1);
-  var notLDB1 = (control2 & 0x2);
-  var notLDB2 = (control2 & 0x4);
-  var notLDC0 = (control2 & 0x8);
-  var notLDC1 = (control2 & 0x10);
-  var notLDC2 = (control2 & 0x20);
+  var SEL = (control2 & 0x7);
+  var notLDOUT = (control2 & 0x8);
+  var notOEIN = (control2 & 0x10);
+  var notLDBC = (control2 & 0x20);
   var notOEB = (control2 & 0x40);
   var notOEC = (control2 & 0x80);
 
@@ -249,18 +246,34 @@ var runMachine = function () {
     data = inPort;
     dataActive++;
   }
+
+  if (dataActive > 1) {
+    return error('Data conflict');
+  }
+
+  // handle ALUB input
+  var ALUB;
+  if (!notLDALU) {
+    if (dataActive == 0) {
+      return error('Data inactive');
+    }
+    ALUB = data;
+  }
+  else {
+    ALUB = (a << 1) | (a >> 3);
+  }
   var ALUR = runAlu(
     ALUM,
     ALUS,
     notCRIN,
     a,
-    data // INPUT! -- here is the issue with nibbler
+    ALUB
   );
-  if (!notLDACU || !notOEALU) {
+  if (!notLDA || !notOEALU) {
     if (ALUR.f === undefined) {
       return ALUR;
     }
-    if (!notLDACU) {
+    if (!notLDA) {
       a = ALUR.f;
     }
     if (!notOEALU) {
@@ -273,27 +286,27 @@ var runMachine = function () {
     return error('Data conflict');
   }
 
-  // handle data inputs
-  if (!notLDB0 || !notLDB1 || !notLDB2 || !notLDC0 || !notLDC1 || !notLDC2 || !notLDFL || !notLDOUT || (!notCSRAM && !notWERAM)) {
+  // handle other data inputs
+  if (!notLDBC || !notLDFL || !notLDOUT || (!notCSRAM && !notWERAM)) {
     if (dataActive == 0) {
       return error('Data inactive');
     }
-    if (!notLDB0) {
+    if (SEL === 0) {
       b0 = data;
     }
-    if (!notLDB1) {
+    if (SEL === 1) {
       b1 = data;
     }
-    if (!notLDB2) {
+    if (SEL === 2) {
       b2 = data;
     }
-    if (!notLDC0) {
+    if (SEL === 4) {
       c0 = data;
     }
-    if (!notLDC1) {
+    if (SEL === 5) {
       c1 = data;
     }
-    if (!notLDC2) {
+    if (SEL === 6) {
       c2 = data;
     }
     if (!notLDFL) {
@@ -311,7 +324,7 @@ var runMachine = function () {
       }
     }
     if (!notLDOUT) {
-      outPorts[currOperand] = data;
+      outPorts[SEL] = data;
     }
     if (!notCSRAM && !notWERAM) {
       mem[address] = data;
