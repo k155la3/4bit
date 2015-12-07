@@ -260,7 +260,7 @@ var runMachine = function () {
     ALUB = data;
   }
   else {
-    ALUB = (a << 1) | (a >> 3);
+    ALUB = (a >> 1) | (a << 3);
   }
   var ALUR = runAlu(
     ALUM,
@@ -269,12 +269,26 @@ var runMachine = function () {
     a,
     ALUB
   );
-  if (!notLDA || !notOEALU) {
+  if (!notLDA || !notOEALU || !notLDFL) {
     if (ALUR.f === undefined) {
       return ALUR;
     }
     if (!notLDA) {
       a = ALUR.f;
+    }
+    if (!notLDFL) {
+      if (ALUR.notCROUT) {
+        flags |= 0x1;
+      }
+      else {
+        flags &= (~0x1);
+      }
+      if (ALUR.f === 0) {
+        flags &= (~0x2);
+      }
+      else {
+        flags |= 0x2;
+      }
     }
     if (!notOEALU) {
       data = ALUR.f;
@@ -287,7 +301,7 @@ var runMachine = function () {
   }
 
   // handle other data inputs
-  if (!notLDBC || !notLDFL || !notLDOUT || (!notCSRAM && !notWERAM)) {
+  if (!notLDBC || !notLDOUT || (!notCSRAM && !notWERAM)) {
     if (dataActive == 0) {
       return error('Data inactive');
     }
@@ -308,20 +322,6 @@ var runMachine = function () {
     }
     if (SEL === 6) {
       c2 = data;
-    }
-    if (!notLDFL) {
-      if (ALUR.notCROUT) {
-        flags |= 0x1;
-      }
-      else {
-        flags &= (~0x1);
-      }
-      if (ALUR.f === 0) {
-        flags &= (~0x2);
-      }
-      else {
-        flags |= 0x2;
-      }
     }
     if (!notLDOUT) {
       outPorts[SEL] = data;
