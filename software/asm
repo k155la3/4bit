@@ -41,6 +41,7 @@ var codes = {
   'bu_b': 0x0b,
   'st_a_@b': 0x0c,
   'st_a_@c': 0x0d,
+  'ror': 0x0e,
   'hlt': 0x0f,
   'ld_a': 0x10,
   'add': 0x20,
