@@ -71,11 +71,9 @@ if (program.trace) {
 }
 
 var dbgCtx = {
-  pc: { inspect: function () { return '0x' + pc.toString(16); }},
   a: { inspect: function () { return '0x' + a.toString(16); }},
   b: { inspect: function () { return '0x' + (b0 | (b1 << 4) | (b2 << 8)).toString(16); }},
   c: { inspect: function () { return '0x' + (c0 | (c1 << 4) | (c2 << 8)).toString(16); }},
-  f: { inspect: function () { return binaryWord(flags); }},
   m: function (addr) {
     return {
       inspect: function () {
@@ -119,21 +117,15 @@ var warning =  function (msg) {
 }
 
 var runAlu = function (m, s, notCRIN, a, b) {
-  var arg = function (x) {
-    if (x === null) {
-      return error('ALU argument inactive');
-    }
-    return x;
-  }
   var f = function (x) {
     return {f: (x & 0xf), notCROUT: (x & 0x10) ? 0 : 1};
   };
   if (m) {
     switch (s) {
       case 0x1:
-        return f((~(arg(a) | arg(b))) & 0xf);
+        return f((~(a | b)) & 0xf);
       case 0xa:
-        return f(arg(b));
+        return f(b);
       default:
         return error('Unsupported ALU operation');
     }
@@ -141,11 +133,11 @@ var runAlu = function (m, s, notCRIN, a, b) {
   else {
     switch (s) {
       case 0x0:
-        return f(arg(a) + (notCRIN ? 0 : 1));
+        return f(a + (notCRIN ? 0 : 1));
       case 0x6:
-        return f((arg(a) - arg(b) - 1) + (notCRIN ? 0 : 1));
+        return f((a + ((~b) & 0xf)) + (notCRIN ? 0 : 1));
       case 0x9:
-        return f((arg(a) + arg(b)) + (notCRIN ? 0 : 1));
+        return f((a + b) + (notCRIN ? 0 : 1));
       default:
         return error('Unsupported ALU operation');
     }
@@ -169,10 +161,13 @@ var runMachine = function () {
     });
   }
 
+  // SETUP PHASE
+  // 0: Setup instruction and flags
   var currProg = prog[pc];
   var currOperand = currProg & 0xf;
   var currUcode = currProg | (flags << 8);
 
+  // 1: Setup CONTROL
   var control0 = ucode0[currUcode];
   var control1 = ucode1[currUcode];
   var control2 = ucode2[currUcode];
@@ -189,7 +184,7 @@ var runMachine = function () {
   var notOEALU = (control1 & 0x8);
   var notLDALU = (control1 & 0x10);
   var notWERAM = (control1 & 0x20);
-  var notCSRAM = (control1 & 0x40);
+  var notRERAM = (control1 & 0x40);
 
   var SEL = (control2 & 0x7);
   var notLDOUT = (control2 & 0x8);
@@ -198,6 +193,7 @@ var runMachine = function () {
   var notOEB = (control2 & 0x40);
   var notOEC = (control2 & 0x80);
 
+  var alu = null;
   var data = null;
   var dataActive = 0;
   var address = null;
@@ -207,7 +203,7 @@ var runMachine = function () {
     return warning('Halted at PC: 0x' + pc.toString(16));
   }
 
-  // handle address outputs
+  // 2: Setup ADDRESS
   if (!notOEB) {
     address = b0 | (b1 << 4) | (b2 << 8);
     addressActive++;
@@ -216,28 +212,20 @@ var runMachine = function () {
     address = c0 | (c1 << 4) | (c2 << 8);
     addressActive++;
   }
-
   if (addressActive > 1) {
     return error('Address conflict');
   }
 
-  // handle address inputs
-  if (!notLDPC || !notCSRAM) {
+  // 3: Setup DATA
+  if (!notRERAM) {
     if (addressActive == 0) {
       return error('Address inactive');
     }
-    if (!notLDPC) {
-      pc = address;
+    if ((data = mem[address]) === undefined) {
+      warning('Reading uninitialized RAM at 0x' + address.toString(16) + ' at PC: 0x' + pc.toString(16));
     }
-    if (!notCSRAM && notWERAM) {
-      if ((data = mem[address]) === undefined) {
-        warning('Reading uninitialized RAM at 0x' + address.toString(16) + ' at PC: 0x' + pc.toString(16));
-      }
-      dataActive++;
-    }
-  }
-
-  // handle data outputs
+    dataActive++;
+  } 
   if (!notOEOP) {
     data = currOperand;
     dataActive++;
@@ -246,94 +234,118 @@ var runMachine = function () {
     data = inPort;
     dataActive++;
   }
-
+  if (notLDALU) {
+    alu = runAlu(
+      ALUM,
+      ALUS,
+      notCRIN,
+      a,
+      (a >> 1) | (a << 3)
+    );
+  }
+  if (!notOEALU) {
+    if (alu == null) {
+      return error('ALU conflict');
+    }
+    if (alu.error !== undefined) {
+      return alu;
+    }
+    data = alu.f;
+    dataActive++;
+  }
   if (dataActive > 1) {
     return error('Data conflict');
   }
 
-  // handle ALUB input
-  var ALUB;
+  // 4: Setup ALU
   if (!notLDALU) {
     if (dataActive == 0) {
       return error('Data inactive');
     }
-    ALUB = data;
-  }
-  else {
-    ALUB = (a >> 1) | (a << 3);
-  }
-  var ALUR = runAlu(
-    ALUM,
-    ALUS,
-    notCRIN,
-    a,
-    ALUB
-  );
-  if (!notLDA || !notOEALU || !notLDFL) {
-    if (ALUR.f === undefined) {
-      return ALUR;
+    alu = runAlu(
+      ALUM,
+      ALUS,
+      notCRIN,
+      a,
+      data
+    );
+    if (alu.error !== undefined) {
+      return alu;
     }
+  }
+
+  // WRITE PHASE
+  // 5: Write BC, OUT and RAM
+  if (!notLDBC || !notLDOUT || !notWERAM) {
+    if (dataActive == 0) {
+      return error('Data inactive');
+    }
+    if (!notLDBC) {
+      if (SEL === 0) {
+        b0 = data;
+      }
+      if (SEL === 1) {
+        b1 = data;
+      }
+      if (SEL === 2) {
+        b2 = data;
+      }
+      if (SEL === 4) {
+        c0 = data;
+      }
+      if (SEL === 5) {
+        c1 = data;
+      }
+      if (SEL === 6) {
+        c2 = data;
+      }
+    }
+    if (!notLDOUT) {
+      outPorts[SEL] = data;
+    }
+    if (!notWERAM) {
+      mem[address] = data;
+    }
+  }
+
+  // 6: Write register A and FLAGS
+  if (!notLDA || !notLDFL) {
+    if (alu === null) {
+      return error('ALU inactive');
+    }
+    if (alu.error !== undefined) {
+      return alu;
+      }
     if (!notLDA) {
-      a = ALUR.f;
+      a = alu.f;
     }
     if (!notLDFL) {
-      if (ALUR.notCROUT) {
+      if (alu.notCROUT) {
         flags |= 0x1;
       }
       else {
         flags &= (~0x1);
       }
-      if (ALUR.f === 0) {
+      if (alu.f === 0) {
         flags &= (~0x2);
       }
       else {
         flags |= 0x2;
       }
     }
-    if (!notOEALU) {
-      data = ALUR.f;
-      dataActive++;
-    }
   }
 
-  if (dataActive > 1) {
-    return error('Data conflict');
+  // 7: Write PC
+  if (!notLDPC) {
+    if (addressActive == 0) {
+      return error('Address inactive');
+    }
+    pc = address;
   }
-
-  // handle other data inputs
-  if (!notLDBC || !notLDOUT || (!notCSRAM && !notWERAM)) {
-    if (dataActive == 0) {
-      return error('Data inactive');
-    }
-    if (SEL === 0) {
-      b0 = data;
-    }
-    if (SEL === 1) {
-      b1 = data;
-    }
-    if (SEL === 2) {
-      b2 = data;
-    }
-    if (SEL === 4) {
-      c0 = data;
-    }
-    if (SEL === 5) {
-      c1 = data;
-    }
-    if (SEL === 6) {
-      c2 = data;
-    }
-    if (!notLDOUT) {
-      outPorts[SEL] = data;
-    }
-    if (!notCSRAM && !notWERAM) {
-      mem[address] = data;
-    }
-  }
-
-  if (INCPC) {
+  else if (INCPC) {
     pc++;
   }
+
   return { success: true };
 };
 
@@ -373,15 +385,16 @@ var afterRun = function (r) {
       }
       return s;
     }, '');
-    showLine(lines, p.iname, p.lnum - 4, '|', '');
-    showLine(lines, p.iname, p.lnum - 3, '|', '');
-    showLine(lines, p.iname, p.lnum - 2, '|', '');
-    showLine(lines, p.iname, p.lnum - 1, '|', '');
-    showLine(lines, p.iname, p.lnum, '>', suffix);
-    showLine(lines, p.iname, p.lnum + 1, '|', '');
-    showLine(lines, p.iname, p.lnum + 2, '|', '');
-    showLine(lines, p.iname, p.lnum + 3, '|', '');
-    showLine(lines, p.iname, p.lnum + 4, '|', '');
+    dbg.output.write(util.format('\n------------------------------------------\nPC: %s ~(00ZC): %s\n------------------------------------------\n', '0x' + pc.toString(16), binaryWord(flags)));    
+    showLine(lines, p.iname, p.lnum - 4, ' | ', '');
+    showLine(lines, p.iname, p.lnum - 3, ' | ', '');
+    showLine(lines, p.iname, p.lnum - 2, ' | ', '');
+    showLine(lines, p.iname, p.lnum - 1, ' | ', '');
+    showLine(lines, p.iname, p.lnum, ' > ', suffix);
+    showLine(lines, p.iname, p.lnum + 1, ' | ', '');
+    showLine(lines, p.iname, p.lnum + 2, ' | ', '');
+    showLine(lines, p.iname, p.lnum + 3, ' | ', '');
+    showLine(lines, p.iname, p.lnum + 4, ' | ', '');
   }
   else {
     dbg.output.write(util.format('[WARNING] No symbols\n'));
