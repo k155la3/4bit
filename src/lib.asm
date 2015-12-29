@@ -25,6 +25,27 @@ macro   ld_c x
         ld_c2 x/2
 end
 
+macro   call v
+        def curr_return=0x0ffc
+
+        st_a_@b
+        st_4d return curr_return
+        bu v
+return: nop
+end
+
+macro   ret
+        def curr_return=0x0ffc
+
+        ld_c curr_return
+        ld_b0_@c
+        ld_c0 curr_return/0+1
+        ld_b1_@c
+        ld_c0 curr_return/0+2
+        ld_b2_@c
+        bu_b
+end
+
 macro   cmp_d4 x v
         ld_c x
         ld_a_@c
