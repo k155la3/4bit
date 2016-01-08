@@ -25,28 +25,40 @@ macro   ld_c x
         ld_c2 x/2
 end
 
-macro   call v
-        def curr_return=0x0ffc
-
-        st_a_@b
-        st_4d return curr_return
-        bu v
-return: nop
+macro   ld_c_@x x
+        ld_b x
+        ld_c0_@b
+        ld_b0 x/0+1
+        ld_c1_@b
+        ld_b0 x/0+2
+        ld_c2_@b
 end
 
-macro   ret
-        def curr_return=0x0ffc
-
-        ld_c curr_return
+macro   ld_b_@x x
+        ld_c x
         ld_b0_@c
-        ld_c0 curr_return/0+1
+        ld_c0 x/0+1
         ld_b1_@c
-        ld_c0 curr_return/0+2
+        ld_c0 x/0+2
         ld_b2_@c
+end
+
+macro   call ctx proc
+
+        st4_v_@x return ctx
+        bu proc
+
+return: nop
+
+end
+
+macro   ret ctx
+
+        ld_b_@x ctx
         bu_b
 end
 
-macro   cmp_d4 x v
+macro   cmp4_@x_v x v
         ld_c x
         ld_a_@c
         cmp v/0
@@ -68,7 +80,7 @@ cmp3:   ld_c0 x/0+3
 done:   nop
 end
 
-macro   cmp_dd x y
+macro   cmp4_@x_@y x y
         ld_c x
         ld_a_@c
         ld_c y
@@ -100,7 +112,7 @@ cmp3:   ld_c x
 done:   nop
 end
 
-macro   add_d4 x v
+macro   add4_@x_v x v
         ld_c x
         ld_a_@c
         add v/0
@@ -163,7 +175,23 @@ done:   nop
 
         end
 
-macro   st_4d v x
+macro   st_v_@x v x
+        ld_c x
+        ld_a v
+        st_a_@c
+end
+
+macro   st2_v_@x v x
+        ld_c x
+        ld_a v/0
+        st_a_@c
+
+        ld_c0 x/0+1
+        ld_a v/1
+        st_a_@c
+end
+
+macro   st4_v_@x v x
         ld_c x
         ld_a v/0
         st_a_@c
@@ -181,7 +209,7 @@ macro   st_4d v x
         st_a_@c
 end
 
-macro   st_4i v p
+macro   st4_v_@@p v p
         ld_b p
         ld_c0_@b
 
@@ -219,7 +247,7 @@ macro   st_4i v p
         st_a_@c
 end
 
-macro   st_di x p
+macro   st4_@x_@@p x p
         ld_b p
         ld_c0_@b
 
@@ -264,7 +292,7 @@ macro   st_di x p
         st_a_@c
 end
 
-macro   ld_di x p
+macro   ld4_@x_@@p x p
         ld_b p
         ld_c0_@b
 
