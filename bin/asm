@@ -115,7 +115,7 @@ for (var i = 0; i < inputs.length; ++i) {
         return { name: arg };
       }
     };
-    var tokens = _.takeWhile(input.lines[k].split(/\t| /).filter(function (t) { return t.length; }), function (t) { return t !== '%'; });
+    var tokens = _.takeWhile(input.lines[k].split(/\t| /).filter(function (t) { return t.length; }), function (t) { return t !== '#'; });
     if (!tokens.length) continue;
     if (tokens[0] === 'end') {
       if (currMacro) {
@@ -129,15 +129,20 @@ for (var i = 0; i < inputs.length; ++i) {
       if (tokens[0] === 'def') {
         var parts = tokens[1].split('=0x')
         if (parts.length === 2) {
+	  var name = parts[0];
           var val;
           if (isNaN(val = parseInt(parts[1], 16))) {
             exit(iname, lnum, util.format('"%s" invalid hexadecimal', parts[1]));
           }
-          currMacro.defs[parts[0]] = { val: val, size: parts[1].length };
+          if (currMacro.defs[name] !== undefined) {
+            exit(iname, lnum, util.format('"%s" already defined', name));
+          }
+          currMacro.defs[name] = { val: val, size: parts[1].length };
         }
         else {
           parts = tokens[1].split('*')
           if (parts.length === 2) {
+	    var name = parts[0];
             var size;
             if (isNaN(size = parseInt(parts[1]))) {
               exit(iname, lnum, util.format('"%s" invalid name size', parts[1]));
@@ -152,7 +157,10 @@ for (var i = 0; i < inputs.length; ++i) {
                 base++;
               }
             }
-            currMacro.defs[parts[0]] = { val: base, size: 4, alloc: true };
+            if (currMacro.defs[name] !== undefined) {
+              exit(iname, lnum, util.format('"%s" already defined', name));
+            }
+            currMacro.defs[name] = { val: base, size: 4, alloc: true };
             base += size;
           }
         }
@@ -189,8 +197,12 @@ for (var i = 0; i < inputs.length; ++i) {
         exit(iname, lnum, util.format('Expected "end"'));
       }
       else {
-        currMacro = { prog: [], defs: {}, aliases: tokens.slice(2) }
-        macros[tokens[1]] = currMacro;
+        var name = tokens[1];
+        currMacro = macros[name];
+        if (currMacro === undefined) {
+          currMacro = { prog: [], defs: {}, aliases: tokens.slice(2) }
+          macros[name] = currMacro;
+        }
       }
     }
   }
@@ -203,6 +215,12 @@ var objDefs = {};
 var namespaces = {};
 var generate = function (macroProg, macroDefs, renaming, namespace) {
   var rename = function (name) {
+    if (name.indexOf('.') !== -1) {
+      return name;
+    }
+    if (namespace.scope === 0) {
+      return namespace.macro + '.' + name;
+    }
     return namespace.macro + '.' + name + '.' + namespace.scope;
   };
   var renameDef = function (_, name) {
