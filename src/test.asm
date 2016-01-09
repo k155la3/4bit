@@ -1,12 +1,12 @@
 macro   main
-        test_branch
-        test_alu
-        test_ram
+        branch_test
+        alu_test
+        ram_test
 
         screen_init
-        screen_char 0x4f
-        screen_char 0x4b
-        screen_char 0x2e
-
-        hlt
+        screen_char "o"
+        screen_char "k"
+        screen_char "e"
+        screen_char "y"
+        screen_char "."
 end

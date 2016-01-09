@@ -2,9 +2,11 @@ macro   hlt_pad
 
         hlt
         hlt
+        hlt
+        hlt
 end
 
-macro   test_branch
+macro   branch_test
 
         bu l0
         hlt_pad

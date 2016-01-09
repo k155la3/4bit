@@ -86,33 +86,49 @@ for (var i = 0; i < inputs.length; ++i) {
     var lnum = k + 1;
     var iname = input.name;
     var parseArg = function (arg) {
-      var parts0 = arg.split('/')
-      if (parts0.length === 2) {
-        var name = parts0[0];
-        var slice;
-        var step;
-        var parts1 = parts0[1].split('+')
-        if (parts1.length === 2) {
-          slice = parseInt(parts1[0]);
-          step = parseInt(parts1[1]);
-          if (isNaN(step) || step > 3) {
-            exit(iname, lnum, util.format('"%s" invalid step', arg));
-          }
-        }
-        else {
-          slice = parseInt(parts0[1]);
-        }
-        if (isNaN(slice) || slice > 3) {
-          exit(iname, lnum, util.format('"%s" invalid slice', arg));
-        }
-        return { name: name, slice: slice, step: step };
-      }
-      else if (arg.startsWith('0x')) {
+      if (arg.startsWith('0x')) {
         var hexVal = arg.substr(2);
         return { lit: parseInt(hexVal, 16), size: hexVal.length };
       }
+      else if (arg.startsWith('"') && arg.length > 1) {
+        return { lit: arg.charCodeAt(1) , size: 2 };
+      }
       else {
-        return { name: arg };
+        var parts0 = arg.split('/')
+        if (parts0.length === 2) {
+          var name = parts0[0];
+          var slice;
+          var step;
+          var parts1 = parts0[1].split('+')
+          if (parts1.length === 2) {
+            slice = parseInt(parts1[0]);
+            step = parseInt(parts1[1]);
+            if (isNaN(step) || step > 3) {
+              exit(iname, lnum, util.format('"%s" invalid step', arg));
+            }
+          }
+          else {
+            slice = parseInt(parts0[1]);
+          }
+          if (isNaN(slice) || slice > 3) {
+            exit(iname, lnum, util.format('"%s" invalid slice', arg));
+          }
+          return { name: name, slice: slice, step: step };
+        }
+        else {
+          var parts0 = arg.split('+0x')
+          if (parts0.length === 2) {
+            var name = parts0[0];
+            var offset = parseInt(parts0[1], 16);
+            if (isNaN(offset)) {
+              exit(iname, lnum, util.format('"%s" invalid offset', arg));
+            }
+            return { name: name, offset: offset };
+          }
+          else {
+            return { name: arg };
+          }
+        }
       }
     };
     var tokens = _.takeWhile(input.lines[k].split(/\t| /).filter(function (t) { return t.length; }), function (t) { return t !== '#'; });
@@ -247,6 +263,12 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
               arg.size = 1;
               return arg;
             }
+            if (arg.offset !== undefined) {
+              delete arg.name;
+              arg.lit = renamedArg.lit + arg.offset;
+	      arg.size = renamedArg.size;
+              return arg;
+            }
             else {
               return renamedArg;
             }
@@ -293,11 +315,16 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
         defs[label] = { val: addr, size: 4, label: true };
       }
     }
+    if (addr > 0xfff) {
+      exit(p.iname, p.lnum, 'Out of ROM space');
+    }
     if (objProg[addr]) {
       exit(p.iname, p.lnum, util.format('ROM placement conflict at 0x%s', addr.toString(16)));
     }
-    objProg[addr] = p;
-    addr += 1;
+    if (p.macro === undefined) {
+      objProg[addr] = p;
+      addr += 1;
+    }
     if (p.macro !== undefined) {
       var macro;
       if ((macro = macros[p.macro]) !== undefined) {
@@ -327,10 +354,10 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
 }
 
 var mainMacro;
-if ((mainMacro = macros['main']) === undefined) {
-  exit('?', 0, util.format('Main macro undefined'));
+if ((mainMacro = macros['__init']) === undefined) {
+  exit('?', 0, util.format('"__init" macro undefined'));
 }
-generate(mainMacro.prog, mainMacro.defs, {}, { macro: 'main', scope: 0 });
+generate(mainMacro.prog, mainMacro.defs, {}, { macro: '__init', scope: 0 });
 
 // Pass 3
 var obj = new Buffer(8192);
@@ -350,19 +377,19 @@ for (var i = 0; i < 8192; ++i) {
         return arg.lit;
       }
       else {
-        var name;
-        if (name = objDefs[arg.name]) {
+        var def;
+        if (def = objDefs[arg.name]) {
           if (arg.slice !== undefined) {
-            if (arg.slice < 0 || arg.slice >= name.size) {
-              exit(p.iname, p.lnum, util.format('"%s/%d" slice is to large; maximum is %d', arg.name, arg.slice, name.size - 1));
+            if (arg.slice < 0 || arg.slice >= def.size) {
+              exit(p.iname, p.lnum, util.format('"%s/%d" slice is to large; maximum is %d', arg.name, arg.slice, def.size - 1));
             }
-            return (((name.val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
+            return (((def.val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
           }
           else {
-            if (name.size != expSize) {
-              exit(p.iname, p.lnum, util.format('"%s*%d" size mismatch; expected size %d', arg.name, name.size, expSize));
+            if (def.size != expSize) {
+              exit(p.iname, p.lnum, util.format('"%s*%d" size mismatch; expected size %d', arg.name, def.size, expSize));
             }
-            return name.val;
+            return def.val + (arg.offset !== undefined ? arg.offset : 0);
           }
         }
         else {

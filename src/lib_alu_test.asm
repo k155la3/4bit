@@ -1,4 +1,4 @@
-macro   test_alu
+macro   alu_test
 
         ld_a 0x1
         add 0x2
