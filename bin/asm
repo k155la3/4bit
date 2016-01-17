@@ -252,38 +252,38 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
       }
       else {
         var renamedArg;
-        if (renamedArg = renaming[arg.name]) {
+        if (renamedArg = _.cloneDeep(renaming[arg.name])) {
           if (renamedArg.lit !== undefined) {
+            var lit = renamedArg.lit + (arg.offset !== undefined ? arg.offset : 0);  
+            delete arg.name;
             if (arg.slice !== undefined) {
               if (arg.slice < 0 || arg.slice >= renamedArg.size) {
                 exit(p.iname, p.lnum, util.format('"0x%s/%d" slice is to large; maximum is %d', renamedArg.lit.toString(16), arg.slice, renamedArg.size - 1));
               }
-              delete arg.name;
-              arg.lit = (((renamedArg.lit >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
+              arg.lit = (((lit >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
               arg.size = 1;
-              return arg;
             }
-            if (arg.offset !== undefined) {
-              delete arg.name;
-              arg.lit = renamedArg.lit + arg.offset;
+	    else {
+              arg.lit = lit;
 	      arg.size = renamedArg.size;
-              return arg;
             }
-            else {
-              return renamedArg;
-            }
+            return arg;
           }
           else {
-            if (arg.slice !== undefined) {
-              if (renamedArg.slice !== undefined) {
-                exit(p.iname, p.lnum, util.format('"%s" is double-sliced', renamedArg.name));
-              }
-              arg.name = renamedArg.name;
-              return arg;
+            if (arg.slice !== undefined && renamedArg.slice !== undefined) {
+              exit(p.iname, p.lnum, util.format('"%s" is double-sliced', renamedArg.name));
             }
-            else {
-              return renamedArg;
+	    if (arg.offset !== undefined && renamedArg.offset !== undefined) {
+              exit(p.iname, p.lnum, util.format('"%s" is double-offset', renamedArg.name));
             }
+            if (renamedArg.slice === undefined) {
+              renamedArg.slice = arg.slice;
+              renamedArg.step = arg.step;
+            }
+            if (renamedArg.offset === undefined) {
+              renamedArg.offset = arg.offset;
+            }
+            return renamedArg;
           }
         }
         else {
@@ -391,17 +391,18 @@ for (var i = 0; i < 8192; ++i) {
       else {
         var def;
         if (def = objDefs[arg.name]) {
+          var val = def.val + (arg.offset !== undefined ? arg.offset : 0);
           if (arg.slice !== undefined) {
             if (arg.slice < 0 || arg.slice >= def.size) {
               exit(p.iname, p.lnum, util.format('"%s/%d" slice is to large; maximum is %d', arg.name, arg.slice, def.size - 1));
             }
-            return (((def.val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
+            return (((val >> (arg.slice * 4)) + (arg.step === undefined ? 0 : arg.step)) & 0xf);
           }
           else {
             if (def.size != expSize) {
               exit(p.iname, p.lnum, util.format('"%s*%d" size mismatch; expected size %d', arg.name, def.size, expSize));
             }
-            return def.val + (arg.offset !== undefined ? arg.offset : 0);
+            return val;
           }
         }
         else {
