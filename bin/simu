@@ -95,7 +95,15 @@ var dbgCtx = {
           ((v0 !== undefined) ? v0.toString(16) : '?');
       }
     }
-  }
+  },
+  out: function (port) {
+    return {
+      inspect: function () {
+        var v = outPorts[port];
+        return '0x' + ((v !== undefined) ? v.toString(16) : '?');
+      }
+    }
+  },
 };
 var dbg = repl.start({ prompt: program.module + '> ' });
 _.merge(dbg.context, dbgCtx);
