@@ -4,9 +4,9 @@ macro   main
         ram_test
 
         screen_init
-        screen_char "o"
-        screen_char "k"
-        screen_char "e"
-        screen_char "y"
-        screen_char "."
+        screen_char_v "o"
+        screen_char_v "k"
+        screen_char_v "e"
+        screen_char_v "y"
+        screen_char_v "."
 end

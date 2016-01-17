@@ -335,6 +335,51 @@ macro   st_v_@@p v p
         st_a_@c
 end
 
+macro   st4_@x_@y x y
+        ld_c x
+        ld_a_@c
+        ld_c y
+        st_a_@c
+        ld_c x
+        ld_c0 x/0+1
+        ld_a_@c
+        ld_c y
+        ld_c0 y/0+1
+        st_a_@c
+        ld_c x
+        ld_c0 x/0+2
+        ld_a_@c
+        ld_c y
+        ld_c0 y/0+2
+        st_a_@c
+        ld_c x
+        ld_c0 x/0+3
+        ld_a_@c
+        ld_c y
+        ld_c0 y/0+3
+        st_a_@c
+end
+
+macro   st2_@x_@y x y
+        ld_c x
+        ld_a_@c
+        ld_c y
+        st_a_@c
+        ld_c x
+        ld_c0 x/0+1
+        ld_a_@c
+        ld_c y
+        ld_c0 y/0+1
+        st_a_@c
+end
+
+macro   st_@x_@y x y
+        ld_c x
+        ld_a_@c
+        ld_c y
+        st_a_@c
+end
+
 macro   st4_@x_@@p x p
         ld_b p
         ld_c0_@b
