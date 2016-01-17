@@ -18,8 +18,7 @@ call:   st4_@x_@@p rp sp
         ld_b_@x cp
         bu_b
 
-ret:
-        add4_@x_v sp 0xfffc
+ret:    add4_@x_v sp 0xfffc
         ld4_@x_@@p rp sp
         ld_b_@x rp
         bu_b
@@ -38,9 +37,8 @@ end
 macro   call proc
 
         st4_v_@x proc __init.cp
-        st4_v_@x return __init.rp
+        st4_v_@x __end __init.rp
         bu __init.call
-return: nop
 end
 
 macro   ret

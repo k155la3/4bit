@@ -63,9 +63,7 @@ l10:    ror
 
 l11:    ror
         cmp 0x1
-        bz l12
+        bz __end
         hlt
-
-l12:    nop
 
 end

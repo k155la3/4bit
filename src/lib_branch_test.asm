@@ -30,7 +30,7 @@ l8:     bu l11
         hlt_pad
 l9:     bu l10
         hlt_pad
-l10:    bu done
+l10:    bu __end
         hlt_pad
 l11:    bu l9
         hlt_pad
@@ -50,6 +50,4 @@ l18:    bu l2
         hlt_pad
 l19:    bu l1
         hlt_pad
-done:   nop
-
 end

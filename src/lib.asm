@@ -48,21 +48,20 @@ macro   cmp4_@x_v x v
         ld_a_@c
         cmp v/0
         bz cmp1
-        bu done
+        bu __end
 cmp1:   ld_c0 x/0+1
         ld_a_@c
         cmp v/1
         bz cmp2
-        bu done
+        bu __end
 cmp2:   ld_c0 x/0+2
         ld_a_@c
         cmp v/2
         bz cmp3
-        bu done
+        bu __end
 cmp3:   ld_c0 x/0+3
         ld_a_@c
         cmp v/3
-done:   nop
 end
 
 macro   cmp2_@x_v x v
@@ -70,11 +69,10 @@ macro   cmp2_@x_v x v
         ld_a_@c
         cmp v/0
         bz cmp1
-        bu done
+        bu __end
 cmp1:   ld_c0 x/0+1
         ld_a_@c
         cmp v/1
-done:   nop
 end
 
 macro   cmp_@x_v x v
@@ -89,7 +87,7 @@ macro   cmp4_@x_@y x y
         ld_c y
         cmp_@c
         bz cmp1
-        bu done
+        bu __end
 cmp1:   ld_c x
         ld_c0 x/0+1
         ld_a_@c
@@ -97,7 +95,7 @@ cmp1:   ld_c x
         ld_c0 y/0+1
         cmp_@c
         bz cmp2
-        bu done
+        bu __end
 cmp2:   ld_c x
         ld_c0 x/0+2
         ld_a_@c
@@ -105,14 +103,13 @@ cmp2:   ld_c x
         ld_c0 y/0+2
         cmp_@c
         bz cmp3
-        bu done
+        bu __end
 cmp3:   ld_c x
         ld_c0 x/0+3
         ld_a_@c
         ld_c y
         ld_c0 y/0+3
         cmp_@c
-done:   nop
 end
 
 macro   cmp2_@x_@y x y
@@ -121,14 +118,13 @@ macro   cmp2_@x_@y x y
         ld_c y
         cmp_@c
         bz cmp1
-        bu done
+        bu __end
 cmp1:   ld_c x
         ld_c0 x/0+1
         ld_a_@c
         ld_c y
         ld_c0 y/0+1
         cmp_@c
-done:   nop
 end
 
 macro   cmp_@x_@y x y
@@ -185,20 +181,18 @@ add3:   ld_c0 x/0+3
         ld_a_@c
         add v/1
         st_a_@c
-        bu done
+        bu __end
 car3:   ld_a_@c
         cmp 0xf
         bz ecar3
         add 0x1
         add v/1
         st_a_@c
-        bu done
+        bu __end
 ecar3:  ld_a v/1
         st_a_@c
         ld_a 0xf
         add 0x1
-
-done:   nop
 end
 
 macro   add2_@x_v x v
@@ -212,20 +206,18 @@ macro   add2_@x_v x v
         ld_a_@c
         add v/1
         st_a_@c
-        bu done
+        bu __end
 car1:   ld_a_@c
         cmp 0xf
         bz ecar1
         add 0x1
         add v/1
         st_a_@c
-        bu done
+        bu __end
 ecar1:  ld_a v/1
         st_a_@c
         ld_a 0xf
         add 0x1
-
-done:   nop
 end
 
 macro   add_@x_v x v
