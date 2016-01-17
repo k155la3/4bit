@@ -348,15 +348,44 @@ var runMachine = function () {
 
   return { success: true };
 };
-
+var cycles = 0;
 var sources = {};
-
+var macroDepth = 0;
+var getLines = function (iname) {
+  var lines = sources[iname];
+  if (!lines) {
+    lines = fs.readFileSync(iname, 'utf8').split(/\n|;/);
+    sources[iname] = lines;
+  }
+  return lines;
+};
 var showLine = function (lines, iname, lnum, prefix, suffix) {
   if (lnum > 0 && lnum <= lines.length) {
-    dbg.output.write(util.format('%s:%s%s%s%s\n', iname, ('000000' + lnum).substr(-6), prefix, lines[lnum - 1], suffix));
+    dbg.output.write(util.format('%s:%s%s%s%s\n', (iname + '                        ').substr(0, 24), ('000000' + lnum).substr(-6), prefix, lines[lnum - 1], suffix));
   }
-}
-var afterRun = function (r) {
+};
+var currProg = function () {
+  var p = map[pc];
+  var depth = macroDepth;
+  while (depth) {
+    p = p.macroRef;
+    depth--;
+  }
+  return p;
+};
+var run = function () {
+  cycles++;
+  return runMachine();
+};
+var afterRun = function () {
+  var p = map[pc];
+  macroDepth = -1;
+  while (p) {
+    macroDepth++;
+    p = p.macroRef;
+  }
+};
+var showState = function (r) {
   if (r.error) {
     dbg.output.write(util.format('[ERROR] %s\n', r.error));
     process.exit(1);
@@ -364,13 +393,10 @@ var afterRun = function (r) {
   if (r.warning) {
     dbg.output.write(util.format('[WARNING] %s\n', r.warning));
   }
-  var p;
-  if (p = map[pc]) {
-    var lines = sources[p.iname];
-    if (!lines) {
-      lines = fs.readFileSync(p.iname, 'utf8').split(/\n|;/);
-      sources[p.iname] = lines;
-    }
+  dbg.output.write(util.format('\n------------------------------------------\nCycles: %s PC: %s ~(00ZC): %s\n------------------------------------------\n', cycles, '0x' + pc.toString(16), binaryWord(flags))); 
+  var p = currProg();
+  if (p) {
+    var lines = getLines(p.iname);
     var suffix = _.reduce(p.args, function (s, arg) {
       if (arg.name) {
         var def;
@@ -385,7 +411,6 @@ var afterRun = function (r) {
       }
       return s;
     }, '');
-    dbg.output.write(util.format('\n------------------------------------------\nPC: %s ~(00ZC): %s\n------------------------------------------\n', '0x' + pc.toString(16), binaryWord(flags)));    
     showLine(lines, p.iname, p.lnum - 4, ' | ', '');
     showLine(lines, p.iname, p.lnum - 3, ' | ', '');
     showLine(lines, p.iname, p.lnum - 2, ' | ', '');
@@ -399,24 +424,31 @@ var afterRun = function (r) {
   else {
     dbg.output.write(util.format('[WARNING] No symbols\n'));
   }
+  cycles = 0;
 };
-
 var breakpoints = {};
 var go = function() {
   var r;
   do {
-    r = runMachine();
-    var p;
-    if (p = map[pc]) {
+    r = run();
+    var willBreak = false;
+    var p = map[pc];
+    while (p) {
       var lines;
       if ((lines = breakpoints[p.iname]) !== undefined) {
         if (lines[p.lnum]) {
-          break;
+          willBreak = true;
+	  break;
         }
       }
+      p = p.macroRef;
+    }
+    if (willBreak) {
+      break;
     }
   } while(r.success);
-  afterRun(r);
+  afterRun();
+  showState(r);
   dbg.displayPrompt();
 };
 var addBreakpoint = function(location) {
@@ -431,13 +463,20 @@ var addBreakpoint = function(location) {
   dbg.displayPrompt();
 };
 var step = function() {
-  var r = runMachine();
-  afterRun(r);
+  if (macroDepth) {
+    macroDepth--;
+    showState({});
+  }
+  else {
+    var r = run();
+    afterRun();
+    showState(r);
+  }
   dbg.displayPrompt();
 };
 var stepOver = function() {
-  var p;
-  if ((p = map[pc]) && p.macro) {
+  var p = currProg();
+  if (p && p.macro) {
     var ret = p.ret;
     var branch;
     if (p.args.length) {
@@ -448,9 +487,10 @@ var stepOver = function() {
     }
     var r;
     do {
-      r = runMachine();
+      r = run();
     } while(r.success && (pc != ret) && (pc != branch));
-    afterRun(r);
+    afterRun();
+    showState(r);
     dbg.displayPrompt();
   }
   else {
@@ -459,7 +499,8 @@ var stepOver = function() {
 };
 var reset = function() {
   pc = 0;
-  afterRun({});
+  afterRun();
+  showState({});
   dbg.displayPrompt();
 };
 
@@ -483,6 +524,4 @@ dbg.defineCommand('r', {
   help: 'Reset execution',
   action: reset
 });
-
-afterRun({});
-dbg.displayPrompt();
+reset();

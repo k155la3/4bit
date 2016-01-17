@@ -319,10 +319,15 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
       exit(p.iname, p.lnum, 'Out of ROM space');
     }
     if (objProg[addr]) {
-      exit(p.iname, p.lnum, util.format('ROM placement conflict at 0x%s', addr.toString(16)));
+      if (objProg[addr].macro !== undefined) {
+        p.macroRef = objProg[addr];
+      }
+      else {
+        exit(p.iname, p.lnum, util.format('ROM placement conflict at 0x%s', addr.toString(16)));
+      }
     }
+    objProg[addr] = p;
     if (p.macro === undefined) {
-      objProg[addr] = p;
       addr += 1;
     }
     if (p.macro !== undefined) {
@@ -341,15 +346,22 @@ var generate = function (macroProg, macroDefs, renaming, namespace) {
         if ((nextNamespace = namespaces[p.macro]) === undefined) {
           namespaces[p.macro] = nextNamespace = { macro: p.macro, scope: 0 };
         }
+	var prevAddr = addr;
         generate(macro.prog, macro.defs, macroRenaming, nextNamespace);
-        p.ret = addr;
-        nextNamespace.scope++;
+        if (addr === prevAddr) {
+	  delete objProg[addr];
+        }
+        else {
+          p.ret = addr;
+          nextNamespace.scope++;
+        }
       }
       else {
         exit(p.iname, p.lnum, util.format('"%s" macro is undefined', p.macro));
       }
     }
   }
+  defs[rename('__end')] = { val: addr, size: 4, label: true };
   _.assign(objDefs, defs);
 }
 
@@ -396,11 +408,8 @@ for (var i = 0; i < 8192; ++i) {
           exit(p.iname, p.lnum, util.format('"%s" name is not defined', arg.name));
         }
       }
-    };
-    if (p.macro) {
-      obj.writeUInt8(0, i);
     }
-    else if (p.args.length === 1) {
+    if (p.args.length === 1) {
       obj.writeWithArg(p.code, resolveArg(p.args[0], 1), i);
     }
     else {
