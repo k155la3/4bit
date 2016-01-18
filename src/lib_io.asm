@@ -4,6 +4,20 @@ end
 
 macro   io
         def read*1
+        def count*4
+
+delay:  add4_@x_v count 0xffff
+        cmp4_@x_v count 0x0000
+        bz done
+        bu delay
+
+done:   ret
+
+end
+
+macro   io_delay_v count
+        st4_v_@x count io.count
+        call io.delay
 end
 
 macro   is_read x
