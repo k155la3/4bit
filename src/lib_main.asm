@@ -1,47 +1,49 @@
-macro   __init
+macro __init
 
-        def sp*4
-        def cp*4
-        def rp*4
-        def s_start=0x0ff0
+  def sp*4
+  def cp*4
+  def rp*4
+  def s_start=0x0ff0
 
-        st4_v_@x s_start sp
+  st4_v_@x s_start sp
 
-        init
-        main
-        hlt
-        defs
-        hlt
+  init
+  main
+  hlt
+
+  defs
+  hlt
         
-call:   st4_@x_@@p rp sp
-        add4_@x_v sp 0x0004
-        ld_b_@x cp
-        bu_b
+call:
+  st4_@x_@@p rp sp
+  add_@x_v sp 0x4
+  ld_b_@x cp
+  bu_b
 
-ret:    add4_@x_v sp 0xfffc
-        ld4_@x_@@p rp sp
-        ld_b_@x rp
-        bu_b
+ret:
+  add_@x_v sp 0xc
+  ld4_@x_@@p rp sp
+  ld_b_@x rp
+  bu_b
 
 end
 
-macro   init
+macro init
 end     
 
-macro   main
+macro main
 end     
 
-macro   defs
+macro defs
 end     
 
-macro   call proc
-
-        st4_v_@x proc __init.cp
-        st4_v_@x __end __init.rp
-        bu __init.call
+macro call proc
+  st4_v_@x proc __init$cp
+  st4_v_@x __end __init$rp
+  bu __init$call
 end
 
-macro   ret
-        bu __init.ret
+macro ret
+  bu __init$ret
 end
 

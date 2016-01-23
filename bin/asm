@@ -82,6 +82,7 @@ var numOfArgs = function (code) {
 };
 for (var i = 0; i < inputs.length; ++i) {
   var input = inputs[i];
+  var label = undefined;
   for (var k = 0; k < input.lines.length; ++k) {
     var lnum = k + 1;
     var iname = input.name;
@@ -134,6 +135,7 @@ for (var i = 0; i < inputs.length; ++i) {
     var tokens = _.takeWhile(input.lines[k].split(/\t| /).filter(function (t) { return t.length; }), function (t) { return t !== '#'; });
     if (!tokens.length) continue;
     if (tokens[0] === 'end') {
+      label = undefined;
       if (currMacro) {
         currMacro = null;
       }
@@ -176,36 +178,39 @@ for (var i = 0; i < inputs.length; ++i) {
             if (currMacro.defs[name] !== undefined) {
               exit(iname, lnum, util.format('"%s" already defined', name));
             }
-            currMacro.defs[name] = { val: base, size: 4, alloc: true };
+            currMacro.defs[name] = { val: base, size: 4, allocSize: size, alloc: true };
             base += size;
           }
         }
       }
       else {
-        var label = null;
         var y = 0;
-        if (tokens[y].length > 1 && tokens[y][tokens[y].length - 1] === ':') {
-          label = tokens[y].substr(0, tokens[y].length - 1);
+	var label0 = tokens[y];
+        if (label0.length > 1 && label0[label0.length - 1] === ':') {
+          label = label0.substr(0, label0.length - 1);
           y += 1;
         }
         var name = tokens[y];
-        var args = _.map(tokens.slice(y + 1), function (arg) { return parseArg(arg, lnum, iname); });
-        var code;
-        var p;
-        if ((code = codes[name]) !== undefined) {
-          var expNumOfArgs = numOfArgs(code)
-          if (expNumOfArgs > args.length) {
-            exit(iname, lnum, util.format('"%s" has less arguments than expected', name));
+	if (name !== undefined) {
+          var args = _.map(tokens.slice(y + 1), function (arg) { return parseArg(arg, lnum, iname); });
+          var code;
+          var p;
+          if ((code = codes[name]) !== undefined) {
+            var expNumOfArgs = numOfArgs(code)
+            if (expNumOfArgs > args.length) {
+              exit(iname, lnum, util.format('"%s" has less arguments than expected', name));
+            }
+            else if (expNumOfArgs < args.length) {
+              exit(iname, lnum, util.format('"%s" has more arguments than expected', name));
+            }
+            p = {code: code, instr: name, args: args, label: label, lnum: lnum, iname: iname};
           }
-          else if (expNumOfArgs < args.length) {
-            exit(iname, lnum, util.format('"%s" has more arguments than expected', name));
+          else {
+            p = {macro: name, args: args, label: label, lnum: lnum, iname: iname};
           }
-          p = {code: code, args: args, label: label, lnum: lnum, iname: iname};
-        }
-        else {
-          p = {macro: name, args: args, label: label, lnum: lnum, iname: iname};
-        }
-        currMacro.prog.push(p);
+	  label = undefined;
+          currMacro.prog.push(p);
+	}
       }
     }
     else if (tokens[0] === 'macro' && tokens.length > 1) {
@@ -231,13 +236,13 @@ var objDefs = {};
 var namespaces = {};
 var generate = function (macroProg, macroDefs, renaming, namespace) {
   var rename = function (name) {
-    if (name.indexOf('.') !== -1) {
+    if (name.indexOf('$') !== -1) {
       return name;
     }
     if (namespace.scope === 0) {
-      return namespace.macro + '.' + name;
+      return namespace.macro + '$' + name;
     }
-    return namespace.macro + '.' + name + '.' + namespace.scope;
+    return namespace.macro + '$' + name + '$' + namespace.scope;
   };
   var renameDef = function (_, name) {
     return rename(name);

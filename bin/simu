@@ -5,7 +5,6 @@ var csv = require('csv');
 var fs = require('fs');
 var program = require('commander');
 var util = require('util');
-var repl = require('repl');
 
 var pc = 0;
 var a = 0;
@@ -19,10 +18,10 @@ var c2 = 0;
 var inPort = 0;
 var outPorts = [];
 var mem = [];
-
 var ucode0 = fs.readFileSync('ucode0.bin');
 var ucode1 = fs.readFileSync('ucode1.bin');
 var ucode2 = fs.readFileSync('ucode2.bin');
+
 var binaryByte = function (x) {
   return '0b' + ('00000000' + (x).toString(2)).substr(-8);
 }
@@ -61,8 +60,6 @@ program
   .parse(process.argv);
 
 prog = fs.readFileSync(program.module + '.obj');
-map = JSON.parse(fs.readFileSync(program.module + '.map', 'utf8'));
-defs = JSON.parse(fs.readFileSync(program.module + '.def', 'utf8'));
 
 var trace;
 if (program.trace) {
@@ -70,60 +67,12 @@ if (program.trace) {
   trace.pipe(fs.createWriteStream(program.module + '_trace.csv'));
 }
 
-var dbgCtx = {
-  a: { inspect: function () { return '0x' + a.toString(16); }},
-  b: { inspect: function () { return '0x' + (b0 | (b1 << 4) | (b2 << 8)).toString(16); }},
-  c: { inspect: function () { return '0x' + (c0 | (c1 << 4) | (c2 << 8)).toString(16); }},
-  m: function (addr) {
-    return {
-      inspect: function () {
-        var v = mem[addr];
-        return '0x' + ((v !== undefined) ? v.toString(16) : '?');
-      }
-    }
-  },
-  m4: function (addr) {
-    return {
-      inspect: function () {
-        var v0 = mem[addr];
-        var v1 = mem[addr + 1];
-        var v2 = mem[addr + 2];
-        var v3 = mem[addr + 3];
-        return '0x' + ((v3 !== undefined) ? v3.toString(16) : '?') +
-          ((v2 !== undefined) ? v2.toString(16) : '?') +
-          ((v1 !== undefined) ? v1.toString(16) : '?') +
-          ((v0 !== undefined) ? v0.toString(16) : '?');
-      }
-    }
-  },
-  out: function (port) {
-    return {
-      inspect: function () {
-        var v = outPorts[port];
-        return '0x' + ((v !== undefined) ? v.toString(16) : '?');
-      }
-    }
-  },
-};
-var dbg = repl.start({ prompt: program.module + '> ' });
-_.merge(dbg.context, dbgCtx);
-
-dbg.on('reset', function (context) {
-  _.merge(dbg.context, dbgCtx);
-});
-dbg.on('exit', function (context) {
-  if (trace) {
-    trace.end();
-  }
-});
-
 var error =  function (msg) {
   return { error: msg };
-}
+};
 var warning =  function (msg) {
   return { warning: msg };
-}
-
+};
 var runAlu = function (m, s, notCRIN, a, b) {
   var f = function (x) {
     return {f: (x & 0xf), notCROUT: (x & 0x10) ? 0 : 1};
@@ -150,8 +99,7 @@ var runAlu = function (m, s, notCRIN, a, b) {
         return error('Unsupported ALU operation');
     }
   }
-}
-
+};
 var runMachine = function () {
   if (trace) {
     trace.write({
@@ -356,9 +304,67 @@ var runMachine = function () {
 
   return { success: true };
 };
+
+// DEBUGGER
+
+var repl = require('repl');
+
+var map = JSON.parse(fs.readFileSync(program.module + '.map', 'utf8'));
+var defs = JSON.parse(fs.readFileSync(program.module + '.def', 'utf8'));
 var cycles = 0;
 var sources = {};
+var breakpoints = {};
 var macroDepth = 0;
+
+var dbgCtx = {
+  machine: {
+    a: { inspect: function () { return '0x' + a.toString(16); }},
+    b: { inspect: function () { return '0x' + (b0 | (b1 << 4) | (b2 << 8)).toString(16); }},
+    c: { inspect: function () { return '0x' + (c0 | (c1 << 4) | (c2 << 8)).toString(16); }},
+    m: function (addr) {
+      return {
+        inspect: function () {
+          var v = mem[addr];
+          return '0x' + ((v !== undefined) ? v.toString(16) : '?');
+        }
+      }
+    },
+    m4: function (addr) {
+      return {
+        inspect: function () {
+          var v0 = mem[addr];
+          var v1 = mem[addr + 1];
+          var v2 = mem[addr + 2];
+          var v3 = mem[addr + 3];
+          return '0x' + ((v3 !== undefined) ? v3.toString(16) : '?') +
+            ((v2 !== undefined) ? v2.toString(16) : '?') +
+            ((v1 !== undefined) ? v1.toString(16) : '?') +
+            ((v0 !== undefined) ? v0.toString(16) : '?');
+        }
+      }
+    },
+    out: function (port) {
+      return {
+        inspect: function () {
+          var v = outPorts[port];
+          return '0x' + ((v !== undefined) ? v.toString(16) : '?');
+        }
+      }
+    }
+  },
+  defs: { inspect: function() { return defs; } },
+  map: { inspect: function() { return map; } }
+};
+var dbg = repl.start({ prompt: program.module + '> ' });
+_.merge(dbg.context, dbgCtx);
+dbg.on('reset', function (context) {
+  _.merge(dbg.context, dbgCtx);
+});
+dbg.on('exit', function (context) {
+  if (trace) {
+    trace.end();
+  }
+});
 var getLines = function (iname) {
   var lines = sources[iname];
   if (!lines) {
@@ -394,14 +400,17 @@ var afterRun = function () {
   }
 };
 var showState = function (r) {
-  if (r.error) {
-    dbg.output.write(util.format('[ERROR] %s\n', r.error));
-    process.exit(1);
+  if (r !== undefined) {
+    if (r.error) {
+      dbg.output.write(util.format('[ERROR] %s\n', r.error));
+      process.exit(1);
+    }
+    if (r.warning) {
+      dbg.output.write(util.format('[WARNING] %s\n', r.warning));
+    }
   }
-  if (r.warning) {
-    dbg.output.write(util.format('[WARNING] %s\n', r.warning));
-  }
-  dbg.output.write(util.format('\n------------------------------------------\nCycles: %s PC: %s ~(00ZC): %s\n------------------------------------------\n', cycles, '0x' + pc.toString(16), binaryWord(flags))); 
+  dbg.output.write(util.format(
+    '\n------------------------------------------\nCycles: %s PC: %s ~(00ZC): %s\n------------------------------------------\n', cycles, '0x' + pc.toString(16), binaryWord(flags))); 
   var p = currProg();
   if (p) {
     var lines = getLines(p.iname);
@@ -419,42 +428,37 @@ var showState = function (r) {
       }
       return s;
     }, '');
-    showLine(lines, p.iname, p.lnum - 4, ' | ', '');
-    showLine(lines, p.iname, p.lnum - 3, ' | ', '');
-    showLine(lines, p.iname, p.lnum - 2, ' | ', '');
-    showLine(lines, p.iname, p.lnum - 1, ' | ', '');
+    for (var i = 9; i >= 1; --i) {
+      showLine(lines, p.iname, p.lnum - i, ' | ', '');
+    }
     showLine(lines, p.iname, p.lnum, ' > ', suffix);
-    showLine(lines, p.iname, p.lnum + 1, ' | ', '');
-    showLine(lines, p.iname, p.lnum + 2, ' | ', '');
-    showLine(lines, p.iname, p.lnum + 3, ' | ', '');
-    showLine(lines, p.iname, p.lnum + 4, ' | ', '');
+    for (var i = 1; i <= 9; ++i) {
+      showLine(lines, p.iname, p.lnum + i, ' | ', '');
+    }
   }
   else {
     dbg.output.write(util.format('[WARNING] No symbols\n'));
   }
   cycles = 0;
 };
-var breakpoints = {};
+var willBreak = function () {
+  var p = map[pc];
+  while (p) {
+    var lines;
+    if ((lines = breakpoints[p.iname]) !== undefined) {
+      if (lines[p.lnum]) {
+        return true;
+      }
+    }
+    p = p.macroRef;
+  }
+  return false;
+}
 var go = function() {
   var r;
   do {
     r = run();
-    var willBreak = false;
-    var p = map[pc];
-    while (p) {
-      var lines;
-      if ((lines = breakpoints[p.iname]) !== undefined) {
-        if (lines[p.lnum]) {
-          willBreak = true;
-	  break;
-        }
-      }
-      p = p.macroRef;
-    }
-    if (willBreak) {
-      break;
-    }
-  } while(r.success);
+  } while(!willBreak() && r.success);
   afterRun();
   showState(r);
   dbg.displayPrompt();
@@ -470,10 +474,22 @@ var addBreakpoint = function(location) {
   }
   dbg.displayPrompt();
 };
+var listBreakpoints = function() {
+  _.forEach(breakpoints, function (lines, iname) {
+    _.forEach(lines, function (_, lnum) {
+      dbg.output.write(util.format('%s:%d\n', iname, lnum));
+    });
+  });
+  dbg.displayPrompt();
+};
+var clearBreakpoints = function() {
+  breakpoints = {};
+  dbg.displayPrompt();
+};
 var step = function() {
   if (macroDepth) {
     macroDepth--;
-    showState({});
+    showState();
   }
   else {
     var r = run();
@@ -496,7 +512,7 @@ var stepOver = function() {
     var r;
     do {
       r = run();
-    } while(r.success && (pc != ret) && (pc != branch));
+    } while(!willBreak() && r.success && (pc != ret) && (pc != branch));
     afterRun();
     showState(r);
     dbg.displayPrompt();
@@ -508,7 +524,7 @@ var stepOver = function() {
 var reset = function() {
   pc = 0;
   afterRun();
-  showState({});
+  showState();
   dbg.displayPrompt();
 };
 
@@ -516,7 +532,15 @@ dbg.defineCommand('b', {
   help: 'Add breakpoint',
   action: addBreakpoint
 });
-dbg.defineCommand('g', {
+dbg.defineCommand('lb', {
+  help: 'List breakpoints',
+  action: listBreakpoints
+});
+dbg.defineCommand('cb', {
+  help: 'Clear breakpoints',
+  action: clearBreakpoints
+});
+dbg.defineCommand('go', {
   help: 'Continue execution',
   action: go
 });
@@ -528,8 +552,12 @@ dbg.defineCommand('so', {
   help: 'Step execution',
   action: stepOver
 });
-dbg.defineCommand('r', {
+dbg.defineCommand('rst', {
   help: 'Reset execution',
   action: reset
+});
+dbg.defineCommand('st', {
+  help: 'Show state',
+  action: showState
 });
 reset();
