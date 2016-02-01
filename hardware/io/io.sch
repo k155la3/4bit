@@ -57,9 +57,9 @@ Entry Wire Line
 	3250 7650 3350 7550
 Text GLabel 4850 8750 3    60   Input ~ 0
 WCLK
-Text GLabel 3400 8350 3    60   Input ~ 0
+Text GLabel 3400 8750 3    60   Input ~ 0
 ~OEIN
-Text GLabel 3250 8350 3    60   Input ~ 0
+Text GLabel 3250 8750 3    60   Input ~ 0
 ~LDOUT
 Text Label 3350 7550 0    60   ~ 0
 DATA0
@@ -138,7 +138,6 @@ $EndComp
 NoConn ~ 3750 8150
 NoConn ~ 3750 8250
 NoConn ~ 3750 8350
-NoConn ~ 3750 8450
 $Comp
 L 74LS125 U1
 U 3 1 56A6DEC5
@@ -917,7 +916,6 @@ F 3 "" H 15300 7350 50  0000 C CNN
 	1    15300 7350
 	1    0    0    -1  
 $EndComp
-NoConn ~ 8900 6050
 $Comp
 L GND #PWR015
 U 1 1 56AAED2B
@@ -1333,11 +1331,11 @@ Wire Wire Line
 Wire Wire Line
 	15950 7200 16200 7200
 Wire Wire Line
-	3400 8350 3400 7950
+	3400 7950 3400 8750
 Wire Wire Line
 	3400 7950 3750 7950
 Wire Wire Line
-	3250 8350 3250 8050
+	3250 8050 3250 8750
 Wire Wire Line
 	3250 8050 3750 8050
 Wire Wire Line
@@ -1599,4 +1597,16 @@ Wire Wire Line
 	3950 9950 3850 9950
 Wire Wire Line
 	3850 9950 3850 10150
+Text GLabel 3550 8750 3    60   Input ~ 0
+~RST
+Wire Wire Line
+	3550 8750 3550 8450
+Wire Wire Line
+	3550 8450 3750 8450
+Text GLabel 7900 5400 1    60   Input ~ 0
+~RST
+Wire Wire Line
+	7900 5400 7900 6050
+Wire Wire Line
+	7900 6050 8900 6050
 $EndSCHEMATC

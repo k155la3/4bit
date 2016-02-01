@@ -2459,7 +2459,6 @@ Wire Wire Line
 	13550 6500 12800 6500
 Wire Wire Line
 	12800 6500 12800 6700
-NoConn ~ 13550 6600
 Wire Wire Line
 	14300 9950 14450 9950
 Wire Wire Line
@@ -2500,4 +2499,10 @@ Wire Bus Line
 	12450 5350 14800 5350
 Wire Bus Line
 	14800 5350 14800 6300
+Text GLabel 12650 6700 3    60   Input ~ 0
+~RST
+Wire Wire Line
+	12650 6700 12650 6600
+Wire Wire Line
+	12650 6600 13550 6600
 $EndSCHEMATC
