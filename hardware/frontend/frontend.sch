@@ -2479,7 +2479,6 @@ F 3 "" H 16550 8950 50  0000 C CNN
 	1    0    0    -1  
 $EndComp
 NoConn ~ 14300 9650
-NoConn ~ 14300 9750
 Wire Bus Line
 	14750 8050 14750 9450
 Wire Bus Line
@@ -2505,4 +2504,10 @@ Wire Wire Line
 	12650 6700 12650 6600
 Wire Wire Line
 	12650 6600 13550 6600
+Text GLabel 14750 10150 3    60   Input ~ 0
+~RERAM
+Wire Wire Line
+	14750 10150 14750 9750
+Wire Wire Line
+	14750 9750 14300 9750
 $EndSCHEMATC
