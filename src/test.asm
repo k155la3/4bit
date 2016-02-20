@@ -1,14 +1,6 @@
 macro main
   branch_test
-  branch_test
-  branch_test
-  
   alu_test
-  alu_test
-  alu_test
-
-  ram_test
-  ram_test
   ram_test
 
   screen_init

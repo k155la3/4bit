@@ -26,7 +26,6 @@ macro screen
   def char*2
 
 init:
-  ctrl_io 0xc
   io_delay_v 0x1000
 
   screen_cmd_v 0x3
@@ -56,26 +55,26 @@ init:
 wcmd:
   out_@x_@p cmd 0x1
 
-  ctrl_io 0xe
-  ctrl_io 0xc
+  ctrl_io 0x2
+  ctrl_io 0x0
   io_delay_v 0x0100
 
   ret
 
 
 wchar:
-  ctrl_io 0xd
+  ctrl_io 0x1
 
   out_@x_@p char+0x1 0x1
 
-  ctrl_io 0xf
-  ctrl_io 0xd
+  ctrl_io 0x3
+  ctrl_io 0x1
   io_delay_v 0x0100
 
   out_@x_@p char 0x1
 
-  ctrl_io 0xf
-  ctrl_io 0xc
+  ctrl_io 0x3
+  ctrl_io 0x0
   io_delay_v 0x0100
 
   ret
