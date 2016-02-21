@@ -36,7 +36,6 @@ try_r:
 
 read:
   ctrl_io 0x4
-  nop
   in_@p_@x 0x2 char
   in_@p_@x 0x3 char+0x1
   ctrl_io 0x0

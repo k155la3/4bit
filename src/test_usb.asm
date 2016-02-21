@@ -1,6 +1,11 @@
 macro main
+  branch_test
+  alu_test
+  ram_test
 
   screen_init
+  screen_char_v "O"
+  screen_char_v "K"
 
 wait:
   usb_read_char

@@ -6,7 +6,4 @@ macro main
   screen_init
   screen_char_v "o"
   screen_char_v "k"
-  screen_char_v "e"
-  screen_char_v "y"
-  screen_char_v "."
 end
