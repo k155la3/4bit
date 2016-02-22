@@ -377,12 +377,12 @@ if ((mainMacro = macros['__init']) === undefined) {
 generate(mainMacro.prog, mainMacro.defs, {}, { macro: '__init', scope: 0 });
 
 // Pass 3
-var obj = new Buffer(8192);
+var obj = new Buffer(32 * 1024);
 obj.fill(0xf);
 obj.writeWithArg = function (code, immediate, addr) {
   this.writeUInt8(code | (immediate & 0xf), addr);
 };
-for (var i = 0; i < 8192; ++i) {
+for (var i = 0; i < obj.length; ++i) {
   var p;
   if (p = objProg[i]) {
     var resolveArg = function (arg, expSize) {
