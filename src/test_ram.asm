@@ -1,7 +1,7 @@
-macro main
+macro __init
 
-        def x=0x0a5a
-        def y=0x05a5
+        def x=0x5a5a
+        def y=0xa5a5
 
         ld_c x
         ld_a 0xa

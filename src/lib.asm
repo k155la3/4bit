@@ -17,12 +17,14 @@ macro ld_b x
   ld_b0 x/0
   ld_b1 x/1
   ld_b2 x/2
+  ld_b3 x/3
 end
 
 macro ld_c x
   ld_c0 x/0
   ld_c1 x/1
   ld_c2 x/2
+  ld_c3 x/3
 end
 
 macro ld_c_@x x
