@@ -34,6 +34,8 @@ macro ld_c_@x x
   ld_c1_@b
   ld_b0 x/0+2
   ld_c2_@b
+  ld_b0 x/0+3
+  ld_c3_@b
 end
 
 macro ld_b_@x x
@@ -43,6 +45,8 @@ macro ld_b_@x x
   ld_b1_@c
   ld_c0 x/0+2
   ld_b2_@c
+  ld_c0 x/0+3
+  ld_b3_@c
 end
 
 macro cmp4_@x_v x v
@@ -203,7 +207,8 @@ ecar2:
   ld_a 0xf
   add 0x1
 
-add3:   ld_c0 x/0+3
+add3:
+  ld_c0 x/0+3
   bc car3
   ld_a_@c
   add v/1
@@ -426,6 +431,9 @@ macro st4_@x_@@p x p
   ld_b0 p/0+2
   ld_c2_@b
 
+  ld_b0 p/0+3
+  ld_c3_@b
+
   ld_b x
   ld_a_@b
   st_a_@c
@@ -471,6 +479,9 @@ macro st2_@x_@@p x p
   ld_b0 p/0+2
   ld_c2_@b
 
+  ld_b0 p/0+3
+  ld_c3_@b
+
   ld_b x
   ld_a_@b
   st_a_@c
@@ -496,6 +507,9 @@ macro st_@x_@@p x p
   ld_b0 p/0+2
   ld_c2_@b
 
+  ld_b0 p/0+3
+  ld_c3_@b
+
   ld_b x
   ld_a_@b
   st_a_@c
@@ -510,6 +524,9 @@ macro ld4_@x_@@p x p
 
   ld_b0 p/0+2
   ld_c2_@b
+
+  ld_b0 p/0+3
+  ld_c3_@b
 
   ld_a_@c
   ld_b x
@@ -556,6 +573,9 @@ macro ld2_@x_@@p x p
   ld_b0 p/0+2
   ld_c2_@b
 
+  ld_b0 p/0+3
+  ld_c3_@b
+
   ld_a_@c
   ld_b x
   st_a_@b
@@ -580,6 +600,9 @@ macro ld_@x_@@p x p
 
   ld_b0 p/0+2
   ld_c2_@b
+
+  ld_b0 p/0+3
+  ld_c3_@b
 
   ld_a_@c
   ld_b x
