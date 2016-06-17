@@ -3,8 +3,9 @@ macro __init
   def sp*4
   def cp*4
   def rp*4
-  def s_start=0x0ff0
+  def s_start=0xfff0
 
+  nop
   st4_v_@x s_start sp
 
   init
