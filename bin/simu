@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+require('string.prototype.startswith');
 var _ = require('lodash');
 var csv = require('csv');
 var fs = require('fs');
@@ -387,15 +388,17 @@ var getLines = function (iname) {
 };
 var showLine = function (lines, iname, lnum, prefix, suffix) {
   if (lnum > 0 && lnum <= lines.length) {
-    dbg.output.write(util.format('%s:%s%s%s%s\n', (iname + '                        ').substr(0, 24), ('000000' + lnum).substr(-6), prefix, lines[lnum - 1], suffix));
+    dbg.outputStream.write(util.format('%s:%s%s%s%s\n', (iname + '                        ').substr(0, 24), ('000000' + lnum).substr(-6), prefix, lines[lnum - 1], suffix));
   }
 };
 var currProg = function () {
   var p = map[pc];
-  var depth = macroDepth;
-  while (depth) {
-    p = p.macroRef;
-    depth--;
+  if (p) {
+    var depth = macroDepth;
+    while (depth) {
+      p = p.macroRef;
+      depth--;
+    }
   }
   return p;
 };
@@ -414,14 +417,14 @@ var afterRun = function () {
 var showState = function (r) {
   if (r !== undefined) {
     if (r.error) {
-      dbg.output.write(util.format('[ERROR] %s\n', r.error));
+      dbg.outputStream.write(util.format('[ERROR] %s\n', r.error));
       process.exit(1);
     }
     if (r.warning) {
-      dbg.output.write(util.format('[WARNING] %s\n', r.warning));
+      dbg.outputStream.write(util.format('[WARNING] %s\n', r.warning));
     }
   }
-  dbg.output.write(util.format(
+  dbg.outputStream.write(util.format(
     '\n------------------------------------------\nCycles: %s PC: %s ~(00ZC): %s\n------------------------------------------\n', cycles, '0x' + pc.toString(16), binaryWord(flags))); 
   var p = currProg();
   if (p) {
@@ -449,7 +452,7 @@ var showState = function (r) {
     }
   }
   else {
-    dbg.output.write(util.format('[WARNING] No symbols\n'));
+    dbg.outputStream.write(util.format('[WARNING] No symbols\n'));
   }
   cycles = 0;
 };
@@ -489,7 +492,7 @@ var addBreakpoint = function(location) {
 var listBreakpoints = function() {
   _.forEach(breakpoints, function (lines, iname) {
     _.forEach(lines, function (_, lnum) {
-      dbg.output.write(util.format('%s:%d\n', iname, lnum));
+      dbg.outputStream.write(util.format('%s:%d\n', iname, lnum));
     });
   });
   dbg.displayPrompt();
