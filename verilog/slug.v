@@ -2,24 +2,18 @@ module slug(
   input logic clk,
   input logic rst);
 
-  logic wclk, fclk, wrst;
+  logic sync_rst;
 
   initial begin
-    wclk = 0;
-    fclk = 0;
-    wrst = 0;
+    sync_rst = 0;
   end
 
-  always @(negedge clk)
-    wclk <= ~wclk;
   always @(posedge clk)
-    fclk <= ~fclk;
-  always @(posedge wclk)
-    wrst <= ~rst;
+    sync_rst <= ~rst;
 
   logic[15:0] prog_addr;
 
-  logic[7:0] prog, prog_buffer, control0, control1, control2;
+  logic[7:0] prog, control0, control1, control2;
 
   /* verilator lint_off UNUSED */
   logic oec, oeb, ldbc, oein, ldout, reram, weram, ldalu, oealu, ldfl, lda, oeop, alum, crin, ldpc, incpc, unused;
@@ -27,16 +21,12 @@ module slug(
   logic[2:0] sel;
   logic[7:0] dsel;
 
-  counter16 ip(.clk(wclk), .rst(wrst), .ld(ldpc), .inc(incpc), .x(addr), .y(prog_addr));
+  counter16 ip(.clk(clk), .rst(sync_rst), .ld(ldpc), .inc(incpc), .x(addr), .y(prog_addr));
 
   rom8x64k #("prog.data") prog_rom(.a(prog_addr), .y(prog));
-
-  always @(posedge fclk)
-    prog_buffer <= prog;
-
-  rom8x2k #("ucode0.data") ucode0_rom(.a({3'b0, prog_buffer}), .y(control0));
-  rom8x2k #("ucode1.data") ucode1_rom(.a({3'b0, prog_buffer}), .y(control1));
-  rom8x2k #("ucode2.data") ucode2_rom(.a({3'b0, prog_buffer}), .y(control2));
+  rom8x2k #("ucode0.data") ucode0_rom(.a({3'b0, prog}), .y(control0));
+  rom8x2k #("ucode1.data") ucode1_rom(.a({3'b0, prog}), .y(control1));
+  rom8x2k #("ucode2.data") ucode2_rom(.a({3'b0, prog}), .y(control2));
 
   assign oec = ~control2[7];
   assign oeb = ~control2[6];
@@ -63,17 +53,17 @@ module slug(
   tri[15:0] addr;
   tri[3:0] data;
 
-  assign data = oeop ? prog_buffer[3:0] : 4'bz;
+  assign data = oeop ? prog[3:0] : 4'bz;
 
-  register4 b0(.clk(wclk), .rst(wrst), .ld(ldbc && dsel[0]), .oe(oeb), .x(data), .y(addr[3:0]));
-  register4 b1(.clk(wclk), .rst(wrst), .ld(ldbc && dsel[1]), .oe(oeb), .x(data), .y(addr[7:4]));
-  register4 b2(.clk(wclk), .rst(wrst), .ld(ldbc && dsel[2]), .oe(oeb), .x(data), .y(addr[11:8]));
-  register4 b3(.clk(wclk), .rst(wrst), .ld(ldbc && dsel[3]), .oe(oeb), .x(data), .y(addr[15:12]));
+  register4 b0(.clk(clk), .rst(sync_rst), .ld(ldbc && dsel[0]), .oe(oeb), .x(data), .y(addr[3:0]));
+  register4 b1(.clk(clk), .rst(sync_rst), .ld(ldbc && dsel[1]), .oe(oeb), .x(data), .y(addr[7:4]));
+  register4 b2(.clk(clk), .rst(sync_rst), .ld(ldbc && dsel[2]), .oe(oeb), .x(data), .y(addr[11:8]));
+  register4 b3(.clk(clk), .rst(sync_rst), .ld(ldbc && dsel[3]), .oe(oeb), .x(data), .y(addr[15:12]));
 
-  register4 c0(.clk(wclk), .rst(wrst), .ld(ldbc && dsel[4]), .oe(oec), .x(data), .y(addr[3:0]));
-  register4 c1(.clk(wclk), .rst(wrst), .ld(ldbc && dsel[5]), .oe(oec), .x(data), .y(addr[7:4]));
-  register4 c2(.clk(wclk), .rst(wrst), .ld(ldbc && dsel[6]), .oe(oec), .x(data), .y(addr[11:8]));
-  register4 c3(.clk(wclk), .rst(wrst), .ld(ldbc && dsel[7]), .oe(oec), .x(data), .y(addr[15:12]));
+  register4 c0(.clk(clk), .rst(sync_rst), .ld(ldbc && dsel[4]), .oe(oec), .x(data), .y(addr[3:0]));
+  register4 c1(.clk(clk), .rst(sync_rst), .ld(ldbc && dsel[5]), .oe(oec), .x(data), .y(addr[7:4]));
+  register4 c2(.clk(clk), .rst(sync_rst), .ld(ldbc && dsel[6]), .oe(oec), .x(data), .y(addr[11:8]));
+  register4 c3(.clk(clk), .rst(sync_rst), .ld(ldbc && dsel[7]), .oe(oec), .x(data), .y(addr[15:12]));
 
   always @(posedge clk)
     $display("prog_a: %H %H %H", prog_addr, addr, data);
