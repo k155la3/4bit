@@ -13,7 +13,7 @@ module alu(
         4'ha: f = b;
         default: f = 4'bx;
       endcase
-      assign crout = 0; 
+      crout = 0; 
     end else begin
       logic[4:0] y;
       case (s)
@@ -22,7 +22,7 @@ module alu(
         4'h9: y = {1'b0, a} + {1'b0, b} + {4'b0, crin};
         default: y = 5'bx;
       endcase
-      assign crout = y[4];
-      assign f = y[3:0];
+      crout = y[4];
+      f = y[3:0];
     end
 endmodule
