@@ -8,8 +8,8 @@ module slug_sim;
   
   initial begin
     clk_t = 0;
-    rst_t = 1;
-    #52 rst_t = 0;
+    rst_t = 0;
+    #52 rst_t = 1;
   end
 
   always

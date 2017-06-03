@@ -4,6 +4,6 @@
     "version": "0.1.0",
     "command": "verilator",
     "isShellCommand": true,
-    "args": ["-Wall", "--cc", "slug.v", "--exe", "main.cpp"],
+    "args": ["-Wall", "--cc", "slug.sv", "--exe", "main.cpp"],
     "showOutput": "always"
 }

@@ -5,7 +5,8 @@ int main() {
     Vslug slug;
     slug.clk = false;
     slug.rst = true;
-    for (int i = 0; i < 128; ++i) {
+    slug.port_in = 0xf;
+    for (int i = 0; i < 64; ++i) {
         slug.eval();
         slug.clk = !slug.clk;
     }
