@@ -92,7 +92,7 @@ module slug(
   register4 out6(.clk(clk), .rst(sync_rst), .ld(ldout & dsel[6]), .oe('b1), .x(data), .y(port_out[27:24]));
   register4 out7(.clk(clk), .rst(sync_rst), .ld(ldout & dsel[7]), .oe('b1), .x(data), .y(port_out[31:28]));
 
-  always @(posedge clk)
-    $display("prog_a: %H", prog_addr);
+  //always @(posedge clk)
+  //$display("prog_a: %H", prog_addr);
    
 endmodule
