@@ -92,6 +92,8 @@ module slug(
   register4 out6(.clk(clk), .rst(sync_rst), .ld(ldout & dsel[6]), .oe('b1), .x(data), .y(port_out[27:24]));
   register4 out7(.clk(clk), .rst(sync_rst), .ld(ldout & dsel[7]), .oe('b1), .x(data), .y(port_out[31:28]));
 
+  ram #(4,16) data_ram(.clk(clk), .we(weram), .re(reram), .x(data), .y(data), .a(addr));
+
   //always @(posedge clk)
   //$display("prog_a: %H %H %H", prog_addr, port_in, port_out);
    

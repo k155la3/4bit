@@ -1,21 +1,28 @@
 14 // ld_a 4
 51 // out 1
 
-13 // ld_a 3
-52 // out 2
-
 60 // in 0
+C0 // ld_c0 0
+0D // st_a_@c
+
+61 // in 1
+C1 // ld_c0 1
+0D // st_a_@c
+
+C0 // ld_c0 0
+05 // ld_a_@c
 50 // out 0
 
+C1 // ld_c0 1
+05 // ld_a_@c
+51 // out 1
+
+13 // ld_a 3
+52 // out 2
 10 // ld_a 0
 52 // out 2
 
-80 // ld_b0 0
-90 // ld_b1 0
-A0 // ld_b2 0
-B0 // ld_b3 0
 0A // bu_b
-
 0F // hlt
 
 
