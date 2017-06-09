@@ -29,10 +29,10 @@ module slug(
 
   counter16 ip(.clk(clk), .rst(sync_rst), .ld(ldpc), .inc(incpc), .x(addr), .y(prog_addr));
 
-  rom8x64k #("prog.data") prog_rom(.a(prog_addr), .y(prog));
-  rom8x2k #("ucode0.data") ucode0_rom(.a({1'b0, ~flags[1:0], prog}), .y(control0));
-  rom8x2k #("ucode1.data") ucode1_rom(.a({1'b0, ~flags[1:0], prog}), .y(control1));
-  rom8x2k #("ucode2.data") ucode2_rom(.a({1'b0, ~flags[1:0], prog}), .y(control2));
+  rom #(8,16,"prog.data") prog_rom(.a(prog_addr), .y(prog));
+  rom #(8,11,"ucode0.data") ucode0_rom(.a({1'b0, ~flags[1:0], prog}), .y(control0));
+  rom #(8,11,"ucode1.data") ucode1_rom(.a({1'b0, ~flags[1:0], prog}), .y(control1));
+  rom #(8,11,"ucode2.data") ucode2_rom(.a({1'b0, ~flags[1:0], prog}), .y(control2));
 
   assign oec = ~control2[7];
   assign oeb = ~control2[6];
@@ -93,6 +93,6 @@ module slug(
   register4 out7(.clk(clk), .rst(sync_rst), .ld(ldout & dsel[7]), .oe('b1), .x(data), .y(port_out[31:28]));
 
   //always @(posedge clk)
-  //$display("prog_a: %H", prog_addr);
+  //$display("prog_a: %H %H %H", prog_addr, port_in, port_out);
    
 endmodule
