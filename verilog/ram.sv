@@ -10,5 +10,5 @@ module ram(
   always @(posedge clk)
     if (we)
       m[a] <= x;
-  assign y = re ? m[a] : 4'bz;
+  assign y = re ? m[a] : {DATA_WIDTH{1'bz}};
 endmodule
