@@ -1,8 +1,9 @@
-module counter16(
+module counter(
   input logic clk, rst, ld, inc,
-  input tri[15:0] x,
-  output logic[15:0] y
+  input tri[DATA_WIDTH-1:0] x,
+  output logic[DATA_WIDTH-1:0] y
 );
+  parameter DATA_WIDTH = 8;
   initial begin
     y = 0;
   end
