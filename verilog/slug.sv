@@ -1,5 +1,4 @@
 /* verilator lint_off UNUSED */
-/* verilator lint_off UNOPTFLAT */
 
 module slug(
   input logic clk,
@@ -19,9 +18,10 @@ module slug(
   logic[15:0] prog_addr;
   logic[7:0] prog, control0, control1, control2;
 
-  logic unused, oec, oeb, ldbc, oein, ldout, reram, weram, ldalu, oealu, ldfl, lda, oeop, alum, crin, ldpc, incpc, crout, zero;
+  logic unused, oec, oeb, ldbc, oein, ldout, reram, weram, ldalu, oea, ldfl, lda, oeop, alum, crin, ldpc, incpc, crout, zero;
 
-  logic[3:0] alus, aluf, alua, alub, flags; 
+  logic[3:0] alus, aluf, alua, alub;
+  logic[1:0] flags; 
   logic[2:0] sel;
   logic[7:0] dsel;
 
@@ -31,9 +31,9 @@ module slug(
   counter #(16) ip(.clk(clk), .rst(sync_rst), .ld(ldpc), .inc(incpc), .x(addr), .y(prog_addr));
 
   rom #(8,16,"prog.data") prog_rom(.a(prog_addr), .y(prog));
-  rom #(8,11,"ucode0.data") ucode0_rom(.a({1'b0, ~flags[1:0], prog}), .y(control0));
-  rom #(8,11,"ucode1.data") ucode1_rom(.a({1'b0, ~flags[1:0], prog}), .y(control1));
-  rom #(8,11,"ucode2.data") ucode2_rom(.a({1'b0, ~flags[1:0], prog}), .y(control2));
+  rom #(8,11,"ucode0.data") ucode0_rom(.a({1'b0, ~flags, prog}), .y(control0));
+  rom #(8,11,"ucode1.data") ucode1_rom(.a({1'b0, ~flags, prog}), .y(control1));
+  rom #(8,11,"ucode2.data") ucode2_rom(.a({1'b0, ~flags, prog}), .y(control2));
 
   assign oec = ~control2[7];
   assign oeb = ~control2[6];
@@ -45,7 +45,7 @@ module slug(
   assign reram = ~control1[6];
   assign weram = ~control1[5];
   assign ldalu = ~control1[4];
-  assign oealu = ~control1[3];
+  assign oea = ~control1[3];
   assign ldfl = ~control1[2];
   assign lda = ~control1[1];
   assign oeop = ~control1[0];
@@ -54,8 +54,8 @@ module slug(
   assign crin = ~control0[2];
   assign ldpc = ~control0[1];
   assign incpc = control0[0];
-  assign data = oeop ? prog[3:0] : (oealu ? aluf : 4'bz);
-  assign alub = ldalu ? data : alua;
+  assign data = oeop ? prog[3:0] : (oea ? alua : 4'bz);
+  assign alub = ldalu ? data : {alua[0],alua[3],alua[2],alua[1]};
   assign zero = ~((aluf[0] | aluf[1]) | (aluf[2] | aluf[3]));
 
   decoder3 sel_decoder(.x(sel), .y(dsel));
@@ -73,7 +73,7 @@ module slug(
   alu alu(.crin(crin), .s(alus), .m(alum), .a(alua), .b(alub), .f(aluf), .crout(crout));
 
   register #(4) a(.clk(clk), .rst(sync_rst), .ld(lda), .oe('b1), .x(aluf), .y(alua));
-  register #(4) f(.clk(clk), .rst(sync_rst), .ld(ldfl), .oe('b1), .x({2'b0, zero, crout}), .y(flags));
+  register #(2) f(.clk(clk), .rst(sync_rst), .ld(ldfl), .oe('b1), .x({zero, crout}), .y(flags));
 
   register #(4) in0(.clk(clk), .rst(sync_rst), .ld('b1), .oe(oein & dsel[0]), .x(port_in[3:0]), .y(data));
   register #(4) in1(.clk(clk), .rst(sync_rst), .ld('b1), .oe(oein & dsel[1]), .x(port_in[7:4]), .y(data));

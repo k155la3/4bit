@@ -17,7 +17,6 @@ module alu(
     end else begin
       logic[4:0] y;
       case (s)
-        4'h0: y = {1'b0, a} + {4'b0, crin};
         4'h6: y = {1'b0, a} + {1'b0, (~b)} + {4'b0, crin};
         4'h9: y = {1'b0, a} + {1'b0, b} + {4'b0, crin};
         default: y = 5'bx;
