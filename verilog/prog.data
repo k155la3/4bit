@@ -1,40 +1,61 @@
+// high RD
+12 // ld_a 2
+52 // out 2
+
+// wait for low RXF
+62 // in 2
+4D // nor D
+82 // ld_b0 2
+0A // bz_b
+
+// low RD
+10 // ld_a 0
+52 // out 2
+
+// wait
+00 // nop
+00 // nop
+00 // nop
+00 // nop
+
+// read char
 60 // in 0
 C0 // ld_c0 0
 0D // st_a_@c
-
 61 // in 1
 C1 // ld_c0 1
 0D // st_a_@c
 
+// wait for low TXE
+62 // in 2
+4E // nor E
+82 // ld_b0 2
+91 // ld_b1 1
+0A // bz_b
+
+// high WR
+11 // ld_a 1
+52 // out 2
+
+// write char
 C0 // ld_c0 0
 05 // ld_a_@c
 50 // out 0
-
 C1 // ld_c0 1
 05 // ld_a_@c
 51 // out 1
 
-13 // ld_a 3
-52 // out 2
+// wait
+00 // nop
+00 // nop
+00 // nop
+00 // nop
+
+// low WR
 10 // ld_a 0
 52 // out 2
 
-0A // bu_b
-0F // hlt
-
-
-
-1f // ld_a f
-2f // add f
-
-09 // bz_c
-0F // hlt
-
+// repeat
 80 // ld_b0 0
 90 // ld_b1 0
-A0 // ld_b2 0
-B0 // ld_b3 0
-60 // in 0
-40 // nor 0
-0A // bz_b
-0F // hlt
+0B // bu_b
