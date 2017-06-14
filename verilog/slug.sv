@@ -1,5 +1,3 @@
-/* verilator lint_off UNUSED */
-
 module slug(
   input logic clk,
   input logic rst,
@@ -16,9 +14,10 @@ module slug(
     sync_rst <= ~rst;
 
   logic[15:0] prog_addr;
-  logic[7:0] prog, control0, control1, control2;
+  logic[7:0] prog, control0, control2;
+  logic[6:0] control1;
 
-  logic unused, oec, oeb, ldbc, oein, ldout, reram, weram, ldalu, oea, ldfl, lda, oeop, alum, crin, ldpc, incpc, crout, zero;
+  logic oec, oeb, ldbc, oein, ldout, reram, weram, ldalu, oea, ldfl, lda, oeop, alum, crin, ldpc, incpc, crout, zero;
 
   logic[3:0] alus, aluf, alua, alub;
   logic[1:0] flags; 
@@ -32,7 +31,7 @@ module slug(
 
   rom #(8,16,"prog.data") prog_rom(.a(prog_addr), .y(prog));
   rom #(8,11,"ucode0.data") ucode0_rom(.a({1'b0, ~flags, prog}), .y(control0));
-  rom #(8,11,"ucode1.data") ucode1_rom(.a({1'b0, ~flags, prog}), .y(control1));
+  rom #(7,11,"ucode1.data") ucode1_rom(.a({1'b0, ~flags, prog}), .y(control1));
   rom #(8,11,"ucode2.data") ucode2_rom(.a({1'b0, ~flags, prog}), .y(control2));
 
   assign oec = ~control2[7];
@@ -41,7 +40,6 @@ module slug(
   assign oein = ~control2[4];
   assign ldout = ~control2[3];
   assign sel = control2[2:0];
-  assign unused = control1[7];
   assign reram = ~control1[6];
   assign weram = ~control1[5];
   assign ldalu = ~control1[4];
@@ -96,6 +94,6 @@ module slug(
   ram #(4,16) data_ram(.clk(clk), .we(weram), .re(reram), .x(data), .y(data), .a(addr));
 
   //always @(posedge clk)
-  //$display("prog_a: %H %H %H", prog_addr, port_in, port_out);
+    //$display("prog_a: %H %H %H", prog_addr, port_in, port_out);
    
 endmodule
