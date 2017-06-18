@@ -37,6 +37,7 @@
   )
 )
 (define (require m) (eval (read (open-input-file m))))
+(define (olit x) (list 8 x))
 (define (qlit x) (list 4 x))
 (define (dlit x) (list 2 x))
 (define (lit x) (list 1 x))
