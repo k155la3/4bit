@@ -2,7 +2,7 @@ module slug_sim;
   logic clk_t, rst_t;
   logic[31:0] port_in_t, port_out_t;
 
-  slug slug_t(
+  slug #("counter.data") slug_t(
     .clk(clk_t),
     .rst(rst_t),
     .port_in(port_in_t),
@@ -16,6 +16,6 @@ module slug_sim;
   end
 
   always
-    #5 clk_t = ~clk_t;
+    #10 clk_t = ~clk_t;
 
 endmodule

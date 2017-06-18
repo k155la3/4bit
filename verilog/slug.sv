@@ -3,6 +3,7 @@ module slug(
   input logic rst,
   input logic[31:0] port_in,
   output logic[31:0] port_out);
+  parameter PROF_DATA_FILE = "echo.data";
 
   logic sync_rst;
 
@@ -29,7 +30,7 @@ module slug(
 
   counter #(16) ip(.clk(clk), .rst(sync_rst), .ld(ldpc), .inc(incpc), .x(addr), .y(prog_addr));
 
-  rom #(8,16,"echo.data") prog_rom(.a(prog_addr), .y(prog));
+  rom #(8,16,PROF_DATA_FILE) prog_rom(.a(prog_addr), .y(prog));
   rom #(8,11,"ucode0.data") ucode0_rom(.a({1'b0, ~flags, prog}), .y(control0));
   rom #(7,11,"ucode1.data") ucode1_rom(.a({1'b0, ~flags, prog}), .y(control1));
   rom #(8,11,"ucode2.data") ucode2_rom(.a({1'b0, ~flags, prog}), .y(control2));
