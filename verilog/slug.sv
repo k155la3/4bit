@@ -1,7 +1,5 @@
-/* verilator lint_off UNUSED */
 module slug(
-  input logic clk,
-  input logic rst,
+  input logic clk0, clk1, rst,
   input logic[31:0] port_in,
   output logic[31:0] port_out);
   parameter PROF_DATA_FILE = "echo.data";
@@ -12,11 +10,9 @@ module slug(
     sync_rst = 0;
   end
 
-  always @(posedge clk)
+  always @(posedge clk0)
     sync_rst <= ~rst;
 
-  logic[1:0] phase;
-  logic[3:0] dphase;
   logic[15:0] prog_addr;
   logic[7:0] prog, control0, control2;
   logic[6:0] control1;
@@ -31,14 +27,11 @@ module slug(
   tri[15:0] addr;
   tri[3:0] data;
 
-  counter #(2) phase_counter(.clk(clk), .rst(sync_rst), .ld(1'b0), .inc(1'b1), .x(2'b0), .y(phase));
-  decoder #(2) phase_decoder(.x(phase), .y(dphase));
+  assign pclk = clk0;
+  assign uclk = clk1;
+  assign rclk = ~clk0;
+  assign wclk = ~clk1;
 
-  assign pclk = clk && dphase[0];
-  assign uclk = clk && dphase[1];
-  assign rclk = clk && dphase[2];
-  assign wclk = clk && dphase[3];
-  
   counter #(16) ip(.clk(wclk), .rst(sync_rst), .ld(ldpc), .inc(incpc), .x(addr), .y(prog_addr));
   
   rom #(8,16,PROF_DATA_FILE) prog_rom(.clk(pclk), .a(prog_addr), .y(prog));
@@ -105,7 +98,7 @@ module slug(
 
   ram #(4,16) data_ram(.wclk(wclk), .rclk(rclk), .we(weram), .re(reram), .x(data), .y(data), .a(addr));
 
-  //always @(posedge clk)
-    //$display("prog_a: %H %H", prog_addr, phase);
+  //always @(clk0, clk1)
+    //$display("%H %H", clk0, clk1);
    
 endmodule

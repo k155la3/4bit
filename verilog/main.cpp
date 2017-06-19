@@ -19,7 +19,8 @@ int main() {
     tcsetattr(STDIN_FILENO,TCSANOW, &tio);
 
     Vslug slug;
-    slug.clk = false;
+    slug.clk0 = false;
+    slug.clk1 = false;
     slug.rst = true;
     slug.port_in |= RXF;
     bool wr = false, rd = false;
@@ -57,11 +58,16 @@ int main() {
             txe = i + (TXE_DELAY * (rand() % 10));
         }
         slug.eval();
-        slug.clk = !slug.clk;
+        if (i % 2) {
+            slug.clk1 = !slug.clk1;
+        }
+        else {
+            slug.clk0 = !slug.clk0;
+        }
         ++i;
         //usleep(1000);
     }
-    while (slug.slug__DOT__prog_rom__DOT__yb != 0xf);
+    while (slug.slug__DOT__prog != 0xf);
     tcsetattr(STDIN_FILENO,TCSANOW, &restore_tio);
     return 0;
 }
