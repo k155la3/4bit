@@ -4,14 +4,16 @@ module counter(
   output logic[DATA_WIDTH-1:0] y
 );
   parameter DATA_WIDTH = 8;
+  logic[DATA_WIDTH-1:0] yb;
   initial begin
-    y = 0;
+    yb = 0;
   end
   always @(posedge clk)
     if (rst)
-      y <= 0;
+      yb <= 0;
     else if (ld)
-      y <= x;
+      yb <= x;
     else if (inc)
-      y <= y + 1;
+      yb <= y + 1;
+  assign y = yb;
 endmodule

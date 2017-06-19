@@ -61,7 +61,7 @@ int main() {
         ++i;
         //usleep(1000);
     }
-    while (slug.slug__DOT__prog != 0xf);
+    while (slug.slug__DOT__prog_rom__DOT__yb != 0xf);
     tcsetattr(STDIN_FILENO,TCSANOW, &restore_tio);
     return 0;
 }
