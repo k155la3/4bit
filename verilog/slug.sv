@@ -1,5 +1,5 @@
 module slug(
-  input logic clk0, clk1, rst,
+  input logic pclk, uclk, rclk, wclk, rst,
   input logic[31:0] port_in,
   output logic[31:0] port_out);
   parameter PROF_DATA_FILE = "echo.data";
@@ -10,14 +10,14 @@ module slug(
     sync_rst = 0;
   end
 
-  always @(posedge clk0)
+  always @(posedge pclk)
     sync_rst <= ~rst;
 
   logic[15:0] prog_addr;
   logic[7:0] prog, control0, control2;
   logic[6:0] control1;
 
-  logic pclk, uclk, rclk, wclk, oec, oeb, ldbc, oein, ldout, reram, weram, ldalu, oea, ldfl, lda, oeop, alum, crin, ldpc, incpc, crout, zero;
+  logic oec, oeb, ldbc, oein, ldout, reram, weram, ldalu, oea, ldfl, lda, oeop, alum, crin, ldpc, incpc, crout, zero;
 
   logic[3:0] alus, aluf, alua, alub;
   logic[1:0] flags; 
@@ -26,11 +26,6 @@ module slug(
 
   tri[15:0] addr;
   tri[3:0] data;
-
-  assign pclk = clk0;
-  assign uclk = clk1;
-  assign rclk = ~clk0;
-  assign wclk = ~clk1;
 
   counter #(16) ip(.clk(wclk), .rst(sync_rst), .ld(ldpc), .inc(incpc), .x(addr), .y(prog_addr));
   
