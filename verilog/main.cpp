@@ -19,8 +19,10 @@ int main() {
     tcsetattr(STDIN_FILENO,TCSANOW, &tio);
 
     Vslug slug;
-    slug.clk0 = false;
-    slug.clk1 = false;
+    slug.pclk = false;
+    slug.uclk = false;
+    slug.rclk = false;
+    slug.wclk = false;
     slug.rst = true;
     slug.port_in |= RXF;
     bool wr = false, rd = false;
@@ -58,11 +60,11 @@ int main() {
             txe = i + (TXE_DELAY * (rand() % 10));
         }
         slug.eval();
-        if (i % 2) {
-            slug.clk1 = !slug.clk1;
-        }
-        else {
-            slug.clk0 = !slug.clk0;
+        switch (i % 4) {
+            case 0: slug.pclk = !slug.pclk; break;
+            case 1: slug.uclk = !slug.uclk; break;
+            case 2: slug.rclk = !slug.rclk; break;
+            case 3: slug.wclk = !slug.wclk; break;
         }
         ++i;
         //usleep(1000);
