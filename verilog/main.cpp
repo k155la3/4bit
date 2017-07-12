@@ -19,10 +19,7 @@ int main() {
     tcsetattr(STDIN_FILENO,TCSANOW, &tio);
 
     Vslug slug;
-    slug.pclk = false;
-    slug.uclk = false;
-    slug.rclk = false;
-    slug.wclk = false;
+    slug.clk = false;
     slug.rst = true;
     slug.port_in |= RXF;
     bool wr = false, rd = false;
@@ -47,6 +44,7 @@ int main() {
 
         if (slug.port_in & TXE) {
             if (i >= txe) {
+                //wc = slug.slug__DOT__data_ram__DOT__m[0] | (slug.slug__DOT__data_ram__DOT__m[1] << 4);
                 write(0, &wc, 1);
                 slug.port_in &= (~TXE);
             }
@@ -60,16 +58,11 @@ int main() {
             txe = i + (TXE_DELAY * (rand() % 10));
         }
         slug.eval();
-        switch (i % 4) {
-            case 0: slug.pclk = !slug.pclk; break;
-            case 1: slug.uclk = !slug.uclk; break;
-            case 2: slug.rclk = !slug.rclk; break;
-            case 3: slug.wclk = !slug.wclk; break;
-        }
+        slug.clk = !slug.clk;
         ++i;
-        //usleep(1000);
+        usleep(100000);
     }
-    while (slug.slug__DOT__prog != 0xf);
+    while (true); // (slug.slug__DOT__prog != 0xf);
     tcsetattr(STDIN_FILENO,TCSANOW, &restore_tio);
     return 0;
 }

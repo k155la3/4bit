@@ -13,7 +13,7 @@
     (assert (= (car literal) 1))
     (define instr (bitwise-ior code (bitwise-and (car (cdr literal)) #x0f)))
     (byte-blob-uset! binary pi instr)
-    (format data "~X~%" instr)
+    (format data "0~%0~%0~%0~%0~%~X~%" instr)
   ))
   (set! pi (+ pi 1))
 )
