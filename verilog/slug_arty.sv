@@ -1,8 +1,7 @@
 module slug_arty(
     input logic rst, sysclk,
-    output logic[3:0] led,
-    input logic[3:0] sw,
-    input logic[3:0] btn
+    output logic uart_rxd,
+    input logic uart_txd
     );
 
   logic clk0, clk1, clk2, clk3, clk_feedback;
@@ -30,16 +29,32 @@ module slug_arty(
   );
 
   logic[31:0] port_out;
+  logic[7:0] din, dout;
+  logic rdy, tx_busy, wr_en, rdy_clr;
+
+  assign din = port_out[7:0];
+  assign wr_en = port_out[8];
+  assign rdy_clr = port_out[9];
+
+  uart uart(
+      .clk_50m(sysclk),
+      .tx(uart_rxd),
+      .rx(uart_txd),
+      .din(din),
+      .dout(dout),
+      .wr_en(wr_en),
+      .tx_busy(tx_busy),
+      .rdy(rdy),
+      .rdy_clr(rdy_clr));
+
   slug #("echo.data") slug(
     .pclk(clk0),
     .uclk(clk1),
     .rclk(clk2),
     .wclk(clk3),
     .rst(rst),
-    .port_in({23'b0, ~btn[0], 4'b0, sw[3:0]}),
+    .port_in({22'b0, rdy, tx_busy, dout[7:0]}),
     .port_out(port_out)
   );
-
-  assign led = port_out[3:0];
   
 endmodule

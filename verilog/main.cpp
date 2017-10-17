@@ -2,13 +2,12 @@
 #include <termios.h>
 #include "./obj_dir/Vslug.h"
 
-#define TXE 0x100
-#define WR  0x100
-#define RXF 0x200
-#define RD  0x200
+#define WR_BUSY 0x100
+#define WR_EN  0x100
+#define RD_RDY 0x200
+#define RD_CLR  0x200
 
-#define TXE_DELAY 5000
-#define RXF_DELAY 5000
+#define UART_CLK_DIV 8681 // 100_000_000 / (115200 / 10)
 
 int main() {
     fcntl(0, F_SETFL, O_NONBLOCK);
@@ -24,40 +23,28 @@ int main() {
     slug.rclk = false;
     slug.wclk = false;
     slug.rst = true;
-    slug.port_in |= RXF;
-    bool wr = false, rd = false;
-    int i = 0, rxf = -1, txe = -1;
+    int i = 0;
     do {
+        bool uart_clk = (i % UART_CLK_DIV) == 0;
         char rc, wc;
-        if (slug.port_in & RXF) {
-            if (i > rxf && read(0, &rc, 1) == 1) {
-                slug.port_in &= (~RXF);
-            }
+        if (slug.port_in & RD_RDY && slug.port_out & RD_CLR) {
+            slug.port_in &= (~RD_RDY);
         }
-        else if (slug.port_out & RD) {
-            rd = true;
-        }
-        else if (rd) {
+        else if (uart_clk && read(0, &rc, 1) == 1) {
             slug.port_in &= (~0xff);
             slug.port_in |= rc;
-            slug.port_in |= RXF;
-            rxf = i + (RXF_DELAY * (rand() % 10));
-            rd = false;
+            slug.port_in |= RD_RDY;
         }
 
-        if (slug.port_in & TXE) {
-            if (i >= txe) {
+        if (slug.port_in & WR_BUSY) {
+            if (uart_clk) {
                 write(0, &wc, 1);
-                slug.port_in &= (~TXE);
+                slug.port_in &= (~WR_BUSY);
             }
-        } else if (slug.port_out & WR) {
-            wr = true;
         }
-        else if (wr) {
-            wr = false;
-            slug.port_in |= TXE;
+        else if (slug.port_out & WR_EN) {
+            slug.port_in |= WR_BUSY;
             wc = slug.port_out & 0xff;
-            txe = i + (TXE_DELAY * (rand() % 10));
         }
         slug.eval();
         switch (i % 4) {
@@ -67,7 +54,7 @@ int main() {
             case 3: slug.wclk = !slug.wclk; break;
         }
         ++i;
-        //usleep(1000);
+        //usleep(1);
     }
     while (slug.slug__DOT__prog != 0xf);
     tcsetattr(STDIN_FILENO,TCSANOW, &restore_tio);

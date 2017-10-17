@@ -5,13 +5,24 @@
     (ld_a x)
     (out (lit #x2))
   )
-  (define (io_wait x)
+  (define (io_wait_clr x)
     (define wait (label))
 
     (>> wait) 
     (in (lit #x2))
     (nor x)
     (bz wait)
+  )
+  (define (io_wait_set x)
+    (define wait (label))
+    (define done (label))
+
+    (>> wait)
+    (in (lit #x2))
+    (nor x)
+    (bz done)
+    (bu wait)
+    (>> done)
   )
   (define (io_read x y)
     (in x)
@@ -28,30 +39,20 @@
 
     (>> repeat) 
 
-    (io_ctrl (lit #x2))
-    (io_wait (lit #xd))
     (io_ctrl (lit #x0))
-
-    (nop)
-    (nop)
-    (nop)
-    (nop)
+    (io_wait_set (lit #xd))
 
     (io_read (lit #x0) (qlit #x0))
     (io_read (lit #x1) (qlit #x1))
 
-    (io_wait (lit #xe))
-    (io_ctrl (lit #x1))
+    (io_wait_clr (lit #xe))
 
     (io_write (qlit #x0) (lit #x0))
     (io_write (qlit #x1) (lit #x1))
 
-    (nop)
-    (nop)
-    (nop)
-    (nop)
+    (io_ctrl (lit #x1))
+    (io_ctrl (lit #x2))
 
-    (io_ctrl (lit #x0))
     (bu repeat)
   )
 )
