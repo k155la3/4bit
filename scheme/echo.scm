@@ -56,7 +56,9 @@
     (define repeat ($def_label))
     (define buffer ($alloc 2))
 
-    (loop ((char <- in-list (string->list "Hello world!\n")))
+    (io_read_data buffer)
+    
+    (loop ((char <- in-list (string->list "Hello world!\n\n")))
       (st2_v_@x ($dword (char->integer char)) buffer)
       (io_write_data buffer)
     )
